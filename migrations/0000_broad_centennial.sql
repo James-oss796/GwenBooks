@@ -7,7 +7,7 @@ CREATE TABLE "users" (
 	"email" text NOT NULL,
 	"university_id" integer NOT NULL,
 	"password" text NOT NULL,
-	"university_card" text NOT NULL,
+	"university_card" text,
 	"status" "status" DEFAULT 'PENDING',
 	"role" "role" DEFAULT 'USER',
 	"last_activity_date" date DEFAULT now(),
