@@ -39,7 +39,7 @@ import { redirect } from "next/navigation";
 }
 
 export const signUp = async(params: AuthCredentials) => {
-    const{fullName, email, universityId, password} = params;
+    const{fullName, email, universityId, password, universityCard} = params;
 
     const ip = (await headers()).get("x-forwarded-for") || "127.0.0.1";
     const {success } = await ratelimit.limit(ip);
@@ -65,7 +65,7 @@ export const signUp = async(params: AuthCredentials) => {
             email,
             universityId,
             password: hashedPassword,
-            // universityCard,
+            universityCard,
          });
 
          await signInWithCredentials({email, password});
