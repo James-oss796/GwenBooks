@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { DefaultValues, SubmitHandler, useForm, UseFormReturn, FieldValues, Path } from "react-hook-form"
 import React from 'react'
 import { ZodType } from "zod"
-import ImageUpload from "./ImageUpload"
+// import ImageUpload from "./ImageUpload"
 import { Button } from "@/components/ui/button"
 import {
   Form,
@@ -79,8 +79,8 @@ const AuthForm =<T extends FieldValues>({
           render={({ field }) => (
             <FormItem>
               <FormLabel className="capitalize">{FIELD_NAMES[field.name as keyof typeof FIELD_NAMES]}</FormLabel>
-              <FormControl>
-                {field.name === 'universityCard' ? (
+             <FormControl>
+                {/* {field.name === 'universityCard' ? (
                   <ImageUpload onFileChange={field.onChange} />
                 ) : 
                 (<Input required type={
@@ -88,7 +88,7 @@ const AuthForm =<T extends FieldValues>({
                 } {...field}
                  className="form-input"
                 />
-                )}
+                )} */}
                 
               </FormControl>
               <FormMessage />
