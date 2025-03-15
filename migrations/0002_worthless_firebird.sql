@@ -1,0 +1,1 @@
+DROP TABLE "borrow_records" CASCADE;
