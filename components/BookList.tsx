@@ -1,14 +1,16 @@
 import React from "react";
 import BookCard from "@/components/BookCard";
+import { Book } from "@/types";
 
 interface Props {
   title: string;
   books: Book[];
+  userId?: string; // added userId
   containerClassName?: string;
 }
 
-const BookList = ({ title, books, containerClassName }: Props) => {
-  if (books.length < 2) return;
+const BookList = ({ title, books, userId, containerClassName }: Props) => {
+  if (books.length < 1) return null; // better than undefined
 
   return (
     <section className={containerClassName}>
@@ -16,10 +18,11 @@ const BookList = ({ title, books, containerClassName }: Props) => {
 
       <ul className="book-list">
         {books.map((book) => (
-          <BookCard key={book.title} {...book} />
+          <BookCard key={book.title} {...book}  />
         ))}
       </ul>
     </section>
   );
 };
+
 export default BookList;

@@ -13,7 +13,11 @@ const config ={
             redisToken: process.env.UPSTASH_REDIS_TOKEN!,
             qstashUrl: process.env.QSTASH_URL!,
             qstashToken: process.env.QSTASH_TOKEN!,
-        }
+        },
+        email: {
+            emailUser: process.env.EMAIL_USER!,
+            emailPass: process.env.EMAIL_PASS!,
+        },
     }
 }
 

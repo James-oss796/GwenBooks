@@ -1,18 +1,21 @@
 interface Book {
     id: string;
     title: string;
-    author: string;
-    genre: string;
-    rating: number;
-    totalCopies: number;
-    availableCopies: number;
-    description: string;
+    readUrl?: string;
+    author?: string;
+    genre?: string;
+    rating?: number;
+    totalCopies?: number;
+    availableCopies?: number;
+    description?: string;
     coverColor: string;
     coverUrl: string;
-    videoUrl: string;
-    summary: string;
-    isLoanedBook: boolean;
-    createdAt: Date | null;
+    videoUrl?: string;
+    summary?: string;
+    isLoanedBook?: boolean;
+    createdAt?: Date | null;
+    readUrl?: string;
+    source?: string;  
   }
   
   interface AuthCredentials {
@@ -41,3 +44,23 @@ interface Book {
     userId: string;
   }
   
+import NextAuth from "next-auth";
+
+declare module "next-auth" {
+  interface Session {
+    user: MyUser;
+  }
+
+  interface User {
+    id: string;
+    email: string;
+  }
+}
+
+
+export interface MyUser {
+  id: string;
+  email: string;
+  name?: string;
+}
+

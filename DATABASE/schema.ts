@@ -7,12 +7,14 @@ import {
   date,
   pgEnum,
   timestamp,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 export const STATUS_ENUM = pgEnum("status", [
   "PENDING",
   "APPROVED",
   "REJECTED",
+  
 ]);
 export const ROLE_ENUM = pgEnum("role", ["USER", "ADMIN"]);
 export const BORROW_STATUS_ENUM = pgEnum("borrow_status", [
@@ -66,4 +68,13 @@ export const borrowRecords = pgTable("borrow_records", {
   returnDate: date("return_date"),
   status: BORROW_STATUS_ENUM("status").default("BORROWED").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: uuid("id").defaultRandom().primaryKey().notNull(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  used: boolean("used").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

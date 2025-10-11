@@ -9,6 +9,17 @@ export default {
   ],
   theme: {
     extend: {
+      animation: {
+        "bounce-custom": "bounceCustom 0.6s infinite alternate",
+      },
+    keyframes: {
+      bounceCustom: {
+        "0%, 100%": { transform: "translateY(0)" },
+        "50%": { transform: "translateY(-4px)" },
+    },
+  },
+
+  
       fontFamily: {
         "ibm-plex-sans": ["IBM Plex Sans", "sans-serif"],
         "bebas-neue": ["var(--bebas-neue)"],

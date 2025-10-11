@@ -5,6 +5,7 @@ const redis = new Redis(
     {
         url: config.env.upstash.redisUrl,
         token: config.env.upstash.redisToken,
+        
     }
 );
 
