@@ -1,43 +1,59 @@
 import { cn } from '@/lib/utils';
-import React from 'react'
+import React from 'react';
 import Image from 'next/image';
 import BookCoverSvg from './BookCoversvg';
 
 type BookCoverVariant = "extraSmall" | "small" | "medium" | "regular" | "wide";
+
 const variantStyles: Record<BookCoverVariant, string> = {
-    extraSmall: "book-cover_extra_small",
-    small: "book-cover_small",
-    medium: "book-cover_medium",
-    regular: "book-cover_regular",
-    wide: "book-cover_wide",
-  };
+  extraSmall: "book-cover_extra_small",
+  small: "book-cover_small",
+  medium: "book-cover_medium",
+  regular: "book-cover_regular",
+  wide: "book-cover_wide",
+};
 
-  interface Props {
-    className?: string;
-    variant?: BookCoverVariant;
-    coverColor: string;
-    coverUrl: string;
-  }
-
-const BookCover = ({
-    className,
-    variant="regular",
-    coverColor ="#012b48",
-    coverUrl = "https://placehold.co/400x600.png",
-    
-
-}: Props) => {
-  return (
-    <div className={cn('relative transition-all duration-300', 
-        variantStyles[variant],
-        className,
-    )}>
-    <BookCoverSvg coverColor={coverColor} />
-    <div className='absolute z-10' style={{left:"12%", width: "87.5%", height: "88%"}}>
-        <Image src ={coverUrl} alt="Book Cover" fill className="rounded-sm object-fill" />
-    </div>
-    </div>
-  )
+interface Props {
+  className?: string;
+  variant?: BookCoverVariant;
+  coverColor: string;
+  coverUrl: string;
 }
 
-export default BookCover
+const BookCover = ({
+  className,
+  variant = "regular",
+  coverColor = "#012b48",
+  coverUrl = "https://placehold.co/400x600.png",
+}: Props) => {
+  return (
+    <div
+      className={cn(
+        'relative transition-all duration-300 rounded-md overflow-hidden',
+        variantStyles[variant],
+        className,
+      )}
+      // ✅ background color from fast-average-color
+      style={{ backgroundColor: coverColor }}
+    >
+      {/* SVG overlay for extra depth */}
+      <BookCoverSvg coverColor={coverColor} />
+
+      {/* Book Image Layer */}
+      <div
+        className="absolute z-10"
+        style={{ left: "12%", width: "87.5%", height: "88%" }}
+      >
+        <Image
+          src={coverUrl}
+          alt="Book Cover"
+          fill
+          crossOrigin="anonymous"
+          className="rounded-sm object-fill"
+        />
+      </div>
+    </div>
+  );
+};
+
+export default BookCover;

@@ -23,6 +23,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "archive.org", // ✅ optional (backup image source)
       },
+      {
+        protocol: "https",
+        hostname: "www.gutenberg.org",
+      },
     ],
   },
   typescript: {

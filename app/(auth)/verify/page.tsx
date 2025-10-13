@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import  verifyCode  from "@/lib/actions/auth";
+import { verifyCode } from "@/lib/actions/auth";
 
 export default function VerifyPage() {
   const [email, setEmail] = useState("");

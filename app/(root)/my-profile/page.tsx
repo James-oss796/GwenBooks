@@ -3,9 +3,8 @@
 import React, { useEffect, useState } from 'react'
 import BookList from '@/components/BookList'
 import { Button } from '@/components/ui/button'
-import BookSearch from "@/components/BookSearch";
-import { fetchBooks } from "@/lib/fetchBooks";
-import { auth } from "@/auth"; // 👈 Import your authentication
+import BookSearch from "@/components/BookSearch"
+import { handleLogout } from '@/app/actions/logout'  // ✅ import your server action
 
 interface Book {
   id: string
@@ -16,11 +15,6 @@ interface Book {
 }
 
 const Page = () => {
-
-  // 1️⃣ Remove await usage here
-  // const session = await auth();  <-- REMOVE THIS
-  // const userId = session?.user?.id || "";  <-- You need session data from somewhere else
-
   const [books, setBooks] = useState<Book[]>([])
 
   useEffect(() => {
@@ -48,29 +42,20 @@ const Page = () => {
     fetchBooksData()
   }, [])
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/actions/logout', { method: 'POST' })
-      window.location.href = '/sign-in'
-    } catch (error) {
-      console.error('Logout failed:', error)
-    }
-  }
-
-  // For now, since you removed session, pass empty userId
   return (
     <main className="p-6 space-y-10">
       <div className="mb-10">
-        <Button onClick={handleLogout}>Logout</Button>
+        <form action={handleLogout}> {/* ✅ call server action directly */}
+          <Button type="submit">Logout</Button>
+        </form>
       </div>
+
       <section className="max-w-4xl mx-auto">
-        <BookSearch userId={""} />
+        <BookSearch userId="" />
       </section>
+
       <section>
-        <BookList
-          title="Best Books"
-          books={books}
-        />
+        <BookList title="Best Books" books={books} />
       </section>
     </main>
   )
