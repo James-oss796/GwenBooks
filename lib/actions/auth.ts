@@ -22,6 +22,8 @@ export type AuthCredentials = {
   universityCard?: string;
 };
 
+export const runtime = "nodejs";
+
 /* ---------------- SIGN IN ---------------- */
 export const signInWithCredentials = async (
   params: Pick<AuthCredentials, "email" | "password">
