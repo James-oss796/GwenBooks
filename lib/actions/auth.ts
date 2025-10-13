@@ -1,6 +1,8 @@
+
 "use server";
 
 import { hash, compare } from "bcryptjs";
+import { runtime } from '@/lib/runtime' 
 import { signIn } from "@/auth";
 import { randomBytes, createHash } from "crypto";
 import redis from "@/DATABASE/redis";
@@ -22,7 +24,7 @@ export type AuthCredentials = {
   universityCard?: string;
 };
 
-export const runtime = "nodejs";
+
 
 /* ---------------- SIGN IN ---------------- */
 export const signInWithCredentials = async (
