@@ -1,8 +1,9 @@
 
+
 "use server";
 
 import { hash, compare } from "bcryptjs";
-import { runtime } from '@/lib/runtime' 
+
 import { signIn } from "@/auth";
 import { randomBytes, createHash } from "crypto";
 import redis from "@/DATABASE/redis";
@@ -20,8 +21,8 @@ export type AuthCredentials = {
   fullName: string;
   email: string;
   password: string;
-  universityId?: string;
-  universityCard?: string;
+  universityId: number;
+  universityCard: string;
 };
 
 
@@ -76,7 +77,8 @@ export const signUp = async (params: AuthCredentials) => {
       password: hashedPassword,
       universityCard,
       status: "PENDING",
-    });
+    }satisfies typeof users.$inferInsert
+  );
 
     // ✅ Create 6-digit code
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();

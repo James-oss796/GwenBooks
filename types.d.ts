@@ -62,5 +62,6 @@ export interface MyUser {
   id: string;
   email: string;
   name?: string;
+  emailVerified?: Date | null; 
 }
 

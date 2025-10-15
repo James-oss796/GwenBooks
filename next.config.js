@@ -1,6 +1,5 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   images: {
     remotePatterns: [
       {
@@ -27,6 +26,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "www.gutenberg.org",
       },
+       {
+        protocol: "https",
+        hostname: "developers.google.com", // ✅ add this line
+      },
     ],
   },
   typescript: {
@@ -37,4 +40,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
