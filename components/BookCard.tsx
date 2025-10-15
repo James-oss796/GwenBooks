@@ -66,7 +66,7 @@ const BookCard = ({
             src={fallbackCover}
             alt={title}
             crossOrigin="anonymous"
-            style={{ display: "none" }}
+            className="hidden"
           />
 
           {/* ✅ Pass the extracted color to BookCover */}
