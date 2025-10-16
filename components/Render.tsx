@@ -23,20 +23,25 @@ type BookMeta = {
   coverUrl?: string | null;
 };
 
+type Chapter = { title: string; page: number };
+
 type Props = {
   book: BookMeta;
   pages: string[];
+  chapters?: Chapter[]; // optional table of contents
 };
 
-export default function Reader({ book, pages }: Props) {
+export default function Reader({ book, pages, chapters = [] }: Props) {
   const [pageIndex, setPageIndex] = useState(0);
   const [fontSize, setFontSize] = useState(18);
-  const [theme, setTheme] = useState<"dark" | "light">("light"); // ✅ default light
+  const [theme, setTheme] = useState<"dark" | "light">("light");
   const [isFavorite, setIsFavorite] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [showNav, setShowNav] = useState(true);
+  const [currentChapter, setCurrentChapter] = useState<number>(0);
+
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   const localKeyProgress = `read:${book.id}:progress`;
@@ -57,7 +62,7 @@ export default function Reader({ book, pages }: Props) {
     if (fav === "true") setIsFavorite(true);
   }, [book.id]);
 
-  // persist
+  // persist state
   useEffect(() => {
     localStorage.setItem(localKeyProgress, String(pageIndex));
     fetch("/api/progress/save", {
@@ -83,11 +88,12 @@ export default function Reader({ book, pages }: Props) {
 
   const handleNext = () => {
     setPageIndex((p) => Math.min(p + 1, pages.length - 1));
-    contentRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
+    contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
+
   const handlePrev = () => {
     setPageIndex((p) => Math.max(p - 1, 0));
-    contentRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
+    contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const increaseFont = () => setFontSize((s) => Math.min(28, s + 1));
@@ -146,7 +152,7 @@ export default function Reader({ book, pages }: Props) {
     }
   };
 
-  // ✅ auto-hide navigation
+  // auto-hide navigation on scroll
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     const handleScroll = () => {
@@ -159,132 +165,109 @@ export default function Reader({ book, pages }: Props) {
     return () => ref?.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // highlight current chapter based on pageIndex
+  useEffect(() => {
+    if (!chapters.length) return;
+    let current = 0;
+    for (let i = 0; i < chapters.length; i++) {
+      if (pageIndex >= chapters[i].page) current = i;
+      else break;
+    }
+    setCurrentChapter(current);
+  }, [pageIndex, chapters]);
+
   return (
-    <div
-      className={`min-h-screen ${
-        theme === "dark" ? "bg-[#0a0a0a] text-gray-100" : "bg-[#fff7e8] text-gray-900"
-      } transition-colors`}
-    >
-      {/* Progress bar */}
+    <div className={`min-h-screen transition-colors ${theme === "dark" ? "bg-[#0a0a0a] text-gray-100" : "bg-[#fff7e8] text-gray-900"}`}>
+      {/* Progress Bar */}
       <div className="fixed top-0 left-0 w-full z-50">
         <div className="h-1 bg-black/20">
-          <div
-            className="h-1 bg-amber-400 transition-all"
-            style={{ width: `${progressPct}%` }}
-          />
+          <div className="h-1 bg-amber-400 transition-all" style={{ width: `${progressPct}%` }} />
         </div>
       </div>
 
       {/* Header */}
-      <div className="max-w-5xl mx-auto px-4 pt-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <button
-              onClick={() => history.back()}
-              className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-2"
-            >
-              ← Back
-            </button>
-            <div className="mt-2">
-              <h1 className="text-2xl font-semibold">{book.title}</h1>
-              <p className="text-sm text-gray-500">{book.author}</p>
-            </div>
-          </div>
-
-          {/* Toolbar - visible only on larger screens */}
-          <div className="hidden sm:flex items-center gap-2">
-            <button title="Decrease font" onClick={decreaseFont} className="p-2 rounded bg-black/10 hover:bg-black/20">
-              <FiMinus />
-            </button>
-            <button title="Increase font" onClick={increaseFont} className="p-2 rounded bg-black/10 hover:bg-black/20">
-              <FiPlus />
-            </button>
-            <button
-              title="Toggle theme"
-              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-              className="p-2 rounded bg-black/10 hover:bg-black/20"
-            >
-              {theme === "dark" ? <FiSun /> : <FiMoon />}
-            </button>
-            <button title="Share" onClick={handleShare} className="p-2 rounded bg-black/10 hover:bg-black/20">
-              <FiShare2 />
-            </button>
-            <button
-              title="Favorite"
-              onClick={toggleFavorite}
-              className={`p-2 rounded ${
-                isFavorite
-                  ? "bg-amber-400 text-black"
-                  : "bg-black/10 hover:bg-black/20"
-              }`}
-            >
-              <FiHeart />
-            </button>
-            <button
-              title="Summarize current page"
-              onClick={openSummary}
-              className="p-2 rounded bg-black/10 hover:bg-black/20"
-            >
-              AI
-            </button>
+      <div className="max-w-5xl mx-auto px-4 pt-6 flex flex-wrap justify-between gap-3 items-start">
+        <div>
+          <button onClick={() => history.back()} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-2">
+            ← Back
+          </button>
+          <div className="mt-2">
+            <h1 className="text-2xl font-semibold">{book.title}</h1>
+            <p className="text-sm text-gray-500">{book.author}</p>
           </div>
         </div>
+
+        {/* Toolbar - Desktop */}
+        <div className="hidden sm:flex items-center gap-2">
+          <button title="Decrease font" onClick={decreaseFont} className="p-2 rounded bg-black/10 hover:bg-black/20">
+            <FiMinus />
+          </button>
+          <button title="Increase font" onClick={increaseFont} className="p-2 rounded bg-black/10 hover:bg-black/20">
+            <FiPlus />
+          </button>
+          <button title="Toggle theme" onClick={() => setTheme(t => (t === "dark" ? "light" : "dark"))} className="p-2 rounded bg-black/10 hover:bg-black/20">
+            {theme === "dark" ? <FiSun /> : <FiMoon />}
+          </button>
+          <button title="Share" onClick={handleShare} className="p-2 rounded bg-black/10 hover:bg-black/20">
+            <FiShare2 />
+          </button>
+          <button title="Favorite" onClick={toggleFavorite} className={`p-2 rounded ${isFavorite ? "bg-amber-400 text-black" : "bg-black/10 hover:bg-black/20"}`}>
+            <FiHeart />
+          </button>
+          <button title="Summarize current page" onClick={openSummary} className="p-2 rounded bg-black/10 hover:bg-black/20">
+            AI
+          </button>
+        </div>
       </div>
+
+      {/* Table of Contents */}
+      {chapters.length > 0 && (
+        <div className="max-w-4xl mx-auto my-6 p-4 border rounded-xl bg-gray-50 dark:bg-gray-800">
+          <h2 className="text-xl font-semibold mb-3">Table of Contents</h2>
+          <ul className="list-disc pl-5 space-y-2">
+            {chapters.map((ch, i) => (
+              <li key={i}>
+                <button
+                  className={`hover:underline ${i === currentChapter ? "font-bold text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300"}`}
+                  onClick={() => {
+                    setPageIndex(ch.page);
+                    contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                >
+                  {ch.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Reader */}
       <div className="max-w-5xl mx-auto p-4 sm:p-6">
-        <div
-          ref={contentRef}
-          className="rounded-2xl p-6 sm:p-8 shadow-xl transition-all overflow-y-auto max-h-[80vh]"
-        >
-          <div
-            className="whitespace-pre-wrap leading-relaxed"
-            style={{ fontSize: `${fontSize}px` }}
-          >
+        <div ref={contentRef} className="rounded-2xl p-6 sm:p-8 shadow-xl transition-all overflow-y-auto max-h-[80vh]">
+          <div className="whitespace-pre-wrap leading-relaxed" style={{ fontSize: `${fontSize}px` }}>
             {pages[pageIndex]}
           </div>
-
-          {/* Pagination */}
-          <AnimatePresence>
-            {showNav && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="mt-6 flex items-center justify-between"
-              >
-                <div>
-                  <button
-                    onClick={handlePrev}
-                    className="px-4 py-2 bg-black/20 rounded hover:bg-black/40 mr-2"
-                    disabled={pageIndex === 0}
-                  >
-                    <FiChevronLeft /> Previous
-                  </button>
-                  <button
-                    onClick={handleNext}
-                    className="px-4 py-2 bg-black/20 rounded hover:bg-black/40"
-                    disabled={pageIndex === pages.length - 1}
-                  >
-                    Next <FiChevronRight />
-                  </button>
-                </div>
-                <div className="text-sm text-gray-400">
-                  Page {pageIndex + 1} / {pages.length}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </div>
 
-      {/* ✅ Mobile Floating Toolbar */}
+      {/* Floating Next/Prev Buttons */}
+      <AnimatePresence>
+        {showNav && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-4 z-50 bg-black/20 p-2 rounded-xl backdrop-blur-sm">
+            <button onClick={handlePrev} className="px-4 py-2 bg-black/40 rounded hover:bg-black/60" disabled={pageIndex === 0}>
+              <FiChevronLeft size={18} /> Prev
+            </button>
+            <button onClick={handleNext} className="px-4 py-2 bg-black/40 rounded hover:bg-black/60" disabled={pageIndex === pages.length - 1}>
+              Next <FiChevronRight size={18} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Floating Toolbar */}
       <div className="sm:hidden fixed bottom-5 right-5 flex flex-col gap-3 z-50">
-        <button
-          onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-          className="p-3 rounded-full bg-black/70 text-white"
-          title="Toggle theme"
-        >
+        <button onClick={() => setTheme(t => (t === "dark" ? "light" : "dark"))} className="p-3 rounded-full bg-black/70 text-white" title="Toggle theme">
           {theme === "dark" ? <FiSun /> : <FiMoon />}
         </button>
         <button onClick={increaseFont} className="p-3 rounded-full bg-black/70 text-white" title="Increase font">
@@ -304,38 +287,13 @@ export default function Reader({ book, pages }: Props) {
       {/* Summary Modal */}
       <AnimatePresence>
         {showSummaryModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-          >
-            <motion.div
-              initial={{ y: 50 }}
-              animate={{ y: 0 }}
-              exit={{ y: 50 }}
-              className="max-w-2xl w-full bg-white dark:bg-gray-900 rounded-xl p-6 relative"
-            >
-              <button
-                type="button"
-                onClick={() => setShowSummaryModal(false)}
-                className="absolute top-4 right-4 p-2 rounded bg-black/10"
-                aria-label="Close summary modal"
-                title="Close"
-              >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <motion.div initial={{ y: 50 }} animate={{ y: 0 }} exit={{ y: 50 }} className="max-w-2xl w-full bg-white dark:bg-gray-900 rounded-xl p-6 relative">
+              <button type="button" onClick={() => setShowSummaryModal(false)} className="absolute top-4 right-4 p-2 rounded bg-black/10" aria-label="Close summary modal" title="Close">
                 <FiX aria-hidden="true" />
               </button>
-
-              <h3 className="text-xl font-semibold mb-3">
-                Summary — current page
-              </h3>
-              {loadingSummary ? (
-                <div>Summarizing…</div>
-              ) : (
-                <div className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
-                  {summary}
-                </div>
-              )}
+              <h3 className="text-xl font-semibold mb-3">Summary — current page</h3>
+              {loadingSummary ? <div>Summarizing…</div> : <div className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{summary}</div>}
             </motion.div>
           </motion.div>
         )}
