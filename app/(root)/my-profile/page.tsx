@@ -16,6 +16,7 @@ interface Book {
 
 const Page = () => {
   const [books, setBooks] = useState<Book[]>([])
+  
 
   useEffect(() => {
     const fetchBooksData = async () => {
@@ -41,6 +42,8 @@ const Page = () => {
 
     fetchBooksData()
   }, [])
+
+  
 
   return (
     <main className="p-6 space-y-10">
