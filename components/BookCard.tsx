@@ -9,7 +9,7 @@ import { Button } from "./ui/button";
 import { FastAverageColor } from "fast-average-color";
 
 interface BookCardProps {
-  id: number | string; // Gutenberg ID (number) or fallback string
+  id: number | string; // Gutenberg ID or DB ID
   title: string;
   author?: string;
   genre?: string;
@@ -31,24 +31,24 @@ const BookCard = ({
   const imgRef = useRef<HTMLImageElement>(null);
   const [avgColor, setAvgColor] = useState<string>(coverColor || "#fff");
 
+  // ✅ Fallback cover image
   const fallbackCover =
-    coverUrl ||
-    `https://covers.openlibrary.org/b/isbn/${id}-L.jpg` ||
-    `https://archive.org/services/img/${id}` ||
-    "/icons/default-book.svg";
+    coverUrl && coverUrl.trim() !== ""
+      ? coverUrl
+      : `https://covers.openlibrary.org/b/id/${id}-L.jpg`;
 
+  // ✅ Extract average color
   useEffect(() => {
     const img = imgRef.current;
     if (!img) return;
 
     const fac = new FastAverageColor();
-
     const handleLoad = async () => {
       try {
         const color = await fac.getColorAsync(img);
         setAvgColor(color.hex);
       } catch (err) {
-        console.warn("Failed to get average color:", err);
+        console.warn("Failed to extract average color:", err);
       }
     };
 
@@ -56,11 +56,15 @@ const BookCard = ({
     return () => img.removeEventListener("load", handleLoad);
   }, [fallbackCover]);
 
+  // ✅ Ensure ID is numeric (or at least trimmed)
+  const cleanId = String(id).replace(/[^0-9]/g, "").trim();
+
   return (
-    <li className={cn(isLoanedBook && "xs:w-52 w-full")}>
-      <Link href={`/library/${String(id).replace(/^works\//, "").replace(/^\/?works\//, "")}`} prefetch>
+    <li className={cn(isLoanedBook ? "xs:w-52 w-full" : "w-full")}>
+      {/* FIXED: clean and valid link */}
+      <Link href={`/read/${cleanId}`}>
         <div className="group hover:scale-[1.03] transition-transform duration-200">
-          {/* Hidden img for color extraction */}
+          {/* Hidden image for color extraction */}
           <img
             ref={imgRef}
             src={fallbackCover}
@@ -69,9 +73,10 @@ const BookCard = ({
             className="hidden"
           />
 
-          {/* ✅ Pass the extracted color to BookCover */}
+          {/* Book Cover */}
           <BookCover coverColor={avgColor} coverUrl={fallbackCover} />
 
+          {/* Info */}
           <div className={cn("mt-4", !isLoanedBook && "xs:max-w-40 max-w-28")}>
             <p className="book-title line-clamp-2">{title}</p>
             {author && (
@@ -83,6 +88,7 @@ const BookCard = ({
           </div>
         </div>
 
+        {/* Loaned Book Section */}
         {isLoanedBook && (
           <div className="mt-3 w-full">
             <div className="book-loaned flex items-center gap-2">

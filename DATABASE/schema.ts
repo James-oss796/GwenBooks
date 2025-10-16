@@ -1,6 +1,7 @@
 import {
   varchar,
   uuid,
+  serial,
   integer,
   text,
   pgTable,
@@ -79,3 +80,23 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   used: boolean("used").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// /DATABASE/schema.ts (add)
+export const favorites = pgTable("favorites", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  bookId: text("book_id").notNull(),
+  title: text("title"),
+  author: text("author"),
+  coverUrl: text("cover_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const reading_progress = pgTable("reading_progress", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  bookId: text("book_id").notNull(),
+  pageIndex: integer("page_index").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
