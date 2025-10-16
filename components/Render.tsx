@@ -28,7 +28,7 @@ type Chapter = { title: string; page: number };
 type Props = {
   book: BookMeta;
   pages: string[];
-  chapters?: Chapter[]; // optional table of contents
+  chapters?: Chapter[];
 };
 
 export default function Reader({ book, pages, chapters = [] }: Props) {
@@ -49,7 +49,6 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
   const localKeyTheme = `read:${book.id}:theme`;
   const localKeyFav = `read:${book.id}:fav`;
 
-  // restore state
   useEffect(() => {
     const p = localStorage.getItem(localKeyProgress);
     const f = localStorage.getItem(localKeyFont);
@@ -62,7 +61,6 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
     if (fav === "true") setIsFavorite(true);
   }, [book.id]);
 
-  // persist state
   useEffect(() => {
     localStorage.setItem(localKeyProgress, String(pageIndex));
     fetch("/api/progress/save", {
@@ -152,7 +150,6 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
     }
   };
 
-  // auto-hide navigation on scroll
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     const handleScroll = () => {
@@ -165,7 +162,6 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
     return () => ref?.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // highlight current chapter based on pageIndex
   useEffect(() => {
     if (!chapters.length) return;
     let current = 0;
@@ -181,7 +177,7 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
       {/* Progress Bar */}
       <div className="fixed top-0 left-0 w-full z-50">
         <div className="h-1 bg-black/20">
-          <div className="h-1 bg-amber-400 transition-all" style={{ width: `${progressPct}%` }} />
+          <div className="h-1 bg-amber-400 transition-all w-[calc((100%*var(--progress)))]" style={{ "--progress": `${progressPct / 100}` } as React.CSSProperties} />
         </div>
       </div>
 
