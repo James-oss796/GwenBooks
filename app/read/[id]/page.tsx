@@ -77,7 +77,8 @@ async function fetchGutenbergBook(id: string) {
 }
 
 export default async function Page({ params }: ReadPageProps) {
-  const { id } = params;
+  const awaitedParams = await params;
+  const { id } = awaitedParams;
   const book = await fetchGutenbergBook(id);
 
   if (!book || !book.readUrl) {
