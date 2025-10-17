@@ -3,6 +3,7 @@ import {
   uuid,
   serial,
   integer,
+  unique,
   text,
   pgTable,
   date,
@@ -98,5 +99,8 @@ export const reading_progress = pgTable("reading_progress", {
   bookId: text("book_id").notNull(),
   pageIndex: integer("page_index").notNull().default(0),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  userBookUnique: unique().on(table.userId, table.bookId),
+}));
+
 

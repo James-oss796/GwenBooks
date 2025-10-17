@@ -10,13 +10,17 @@ export async function POST(req: Request) {
 
   // if user logged in, upsert reading progress
   if (user) {
-    await db
-      .insert(reading_progress)
-      .values({ userId: user.user.id, bookId: String(bookId), pageIndex: Number(pageIndex) })
-      .onConflictDoUpdate({
-        target: reading_progress.userId,
-        set: { pageIndex: Number(pageIndex) },
-      });
+    await db.insert(reading_progress)
+  .values({
+    userId: user.user.id,
+    bookId: String(bookId),
+    pageIndex: Number(pageIndex),
+  })
+  .onConflictDoUpdate({
+    target: [reading_progress.userId, reading_progress.bookId],
+    set: { pageIndex: Number(pageIndex) },
+  });
+
   }
 
   return NextResponse.json({ ok: true });
