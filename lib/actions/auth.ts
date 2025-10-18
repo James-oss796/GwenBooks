@@ -1,5 +1,6 @@
-export const runtime = 'nodejs'
 
+
+"use server";
 
 import { hash} from "bcryptjs";
 import { signIn } from "@/auth";
