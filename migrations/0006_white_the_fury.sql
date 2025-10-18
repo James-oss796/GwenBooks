@@ -1,0 +1,1 @@
+ALTER TABLE "reading_progress" ADD CONSTRAINT "reading_progress_user_id_book_id_unique" UNIQUE("user_id","book_id");

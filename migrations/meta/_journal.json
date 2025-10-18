@@ -43,6 +43,13 @@
       "when": 1760609415582,
       "tag": "0005_past_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1760821425703,
+      "tag": "0006_white_the_fury",
+      "breakpoints": true
     }
   ]
 }
