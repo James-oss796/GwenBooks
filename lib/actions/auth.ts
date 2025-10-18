@@ -1,8 +1,7 @@
+export const runtime = 'nodejs'
 
 
-"use server";
-
-import { hash, compare } from "bcryptjs";
+import { hash} from "bcryptjs";
 import { signIn } from "@/auth";
 import { randomBytes, createHash } from "crypto";
 import redis from "@/DATABASE/redis";
