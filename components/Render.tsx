@@ -177,10 +177,10 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
       {/* Progress Bar */}
       <div className="fixed top-0 left-0 w-full z-50">
         <div className="h-1 bg-black/20">
-<div
+    <div
   className="h-1 bg-amber-400 transition-all"
   style={{ width: `${progressPct}%` }}
-/>
+    />
 
         </div>
       </div>
