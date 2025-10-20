@@ -70,42 +70,43 @@ const Page = () => {
   }, [])
 
   return (
-    <main className="p-6 space-y-10">
-      {/* Logout Button */}
-      <div className="mb-10">
-        <form action={handleLogout}>
-          <Button type="submit">Logout</Button>
-        </form>
-      </div>
+    <main className="p-4 sm:p-6 space-y-8 max-w-6xl mx-auto">
+  {/* Logout Button */}
+  <div className="flex justify-end">
+    <form action={handleLogout}>
+      <Button size="sm">Logout</Button>
+    </form>
+  </div>
 
-      {/* Search */}
-      <section className="max-w-4xl mx-auto">
-        <BookSearch userId="" />
-      </section>
+  {/* Search */}
+  <section className="w-full">
+    <BookSearch userId="" />
+  </section>
 
-      {/* Tabs */}
-      <section>
-        <Tabs defaultValue="best" className="w-full">
-          <TabsList className="flex justify-center space-x-20 border-b pb-2 mb-6">
-            <TabsTrigger value="best">Best Books</TabsTrigger>
-            <TabsTrigger value="favorites">Favorites</TabsTrigger>
-            <TabsTrigger value="recent">Recent Reads</TabsTrigger>
-          </TabsList>
+  {/* Tabs */}
+  <section className="w-full">
+    <Tabs defaultValue="best" className="w-full">
+      <TabsList className="flex flex-wrap justify-center gap-4 sm:gap-8 border-b pb-2 mb-4">
+        <TabsTrigger value="best" className="text-sm sm:text-base">Best Books</TabsTrigger>
+        <TabsTrigger value="favorites" className="text-sm sm:text-base">Favorites</TabsTrigger>
+        <TabsTrigger value="recent" className="text-sm sm:text-base">Recent Reads</TabsTrigger>
+      </TabsList>
 
-          <TabsContent value="best">
-            <BookList title="Best Books" books={bestBooks} />
-          </TabsContent>
+      <TabsContent value="best">
+        <BookList title="Best Books" books={bestBooks} />
+      </TabsContent>
 
-          <TabsContent value="favorites">
-            <BookList title="Your Favorites" books={favoriteBooks} />
-          </TabsContent>
+      <TabsContent value="favorites">
+        <BookList title="Your Favorites" books={favoriteBooks} />
+      </TabsContent>
 
-          <TabsContent value="recent">
-            <BookList title="Recently Read" books={recentBooks} />
-          </TabsContent>
-        </Tabs>
-      </section>
-    </main>
+      <TabsContent value="recent">
+        <BookList title="Recently Read" books={recentBooks} />
+      </TabsContent>
+    </Tabs>
+  </section>
+</main>
+
   )
 }
 
