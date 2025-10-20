@@ -20,8 +20,6 @@ export type AuthCredentials = {
   fullName: string;
   email: string;
   password: string;
-  universityId: number;
-  universityCard: string;
 };
 
 
@@ -52,7 +50,7 @@ export const signInWithCredentials = async (
 
 /* ---------------- SIGN UP ---------------- */
 export const signUp = async (params: AuthCredentials) => {
-  const { fullName, email, universityId, password, universityCard } = params;
+  const { fullName, email, password } = params;
   const ip = (await headers()).get("x-forwarded-for") || "127.0.0.1";
   const { success } = await ratelimit.limit(ip);
   if (!success) return redirect("/too-fast");
@@ -72,9 +70,7 @@ export const signUp = async (params: AuthCredentials) => {
     await db.insert(users).values({
       fullName,
       email,
-      universityId,
       password: hashedPassword,
-      universityCard,
       status: "PENDING",
     }satisfies typeof users.$inferInsert
   );

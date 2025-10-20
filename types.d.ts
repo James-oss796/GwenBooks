@@ -22,8 +22,6 @@ interface Book {
     fullName: string;
     email: string;
     password: string;
-    universityId: number;
-    universityCard: string;
   }
   
   interface BookParams {
