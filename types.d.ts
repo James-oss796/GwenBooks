@@ -15,7 +15,7 @@ interface Book {
     isLoanedBook?: boolean;
     createdAt?: Date | null;
     readUrl?: string;
-    source?: string;  
+    source?: "gutenberg" | "openlibrary" | "internetarchive"; 
   }
   
   interface AuthCredentials {

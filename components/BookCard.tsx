@@ -18,12 +18,14 @@ interface BookCardProps {
   coverColor?: string;
   isLoanedBook?: boolean;
   userId?: string;
+  source:  "gutenberg" | "openlibrary" | "internetarchive";
 }
 
 const BookCard = ({
   id,
   title,
   author,
+  source,
   genre,
   coverUrl,
   coverColor,
@@ -59,14 +61,24 @@ const BookCard = ({
 
   const cleanId = String(id).replace(/[^0-9]/g, "").trim();
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    // Give spinner time to appear
-    setTimeout(() => {
-      router.push(`/read/${cleanId}`);
-    }, 500);
-  };
+ const handleClick = (e: React.MouseEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
+
+  setTimeout(() => {
+    const safeSource = (source || "gutenberg").toLowerCase();
+
+    // Clean Open Library IDs like "/works/OL12345W"
+    const cleanedId = String(id).replace(/^\/works\//, "").trim();
+
+    // Build a safe, encoded route param
+    const safeId = encodeURIComponent(`${safeSource}:${cleanedId}`);
+
+    router.push(`/read/${safeId}`);
+  }, 500);
+};
+
+
 
   return (
     <li className={cn(isLoanedBook ? "xs:w-52 w-full" : "w-full relative")}>

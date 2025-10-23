@@ -1,55 +1,113 @@
-// lib/fetchBooks.ts
-import { Book } from "@/types"; // ensure your types export Book
+// =====================================
+// 🔍 Fetch Book By Source (For Reader)
+// =====================================
+export async function fetchBookBySource(rawId: string) {
+  if (!rawId) return null;
 
-export async function fetchBooks(query: string): Promise<Book[]> {
-  if (!query) return [];
+  const decoded = decodeURIComponent(rawId);
+  const [source, idPart] = decoded.split(":");
 
   try {
-    // Open Library search
-    const olRes = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=12`);
-    const ol = await olRes.json();
+    switch (source) {
+      // 🏛️ Gutenberg
+      case "gutenberg": {
+        const cleanId = idPart.replace(/\D/g, ""); // Remove "OL" or other prefixes
+        const res = await fetch(`https://gutendex.com/books/${cleanId}`);
+        if (!res.ok) return null;
 
-    if (ol.docs && ol.docs.length) {
-      return ol.docs.slice(0, 12).map((d: any) => {
-        // prefer Internet Archive identifier if present (ia)
-        const ia = d.ia ? d.ia[0] : d.identifier?.[0] || null;
-        const readUrl = ia
-          ? `https://archive.org/download/${ia}/${ia}.pdf` // direct pdf attempt
-          : d.key
-          ? `https://openlibrary.org${d.key}` // fallback to OL work page
-          : "https://openlibrary.org";
+        const data = await res.json();
+        const formats = data.formats ?? {};
+
+        let readUrl: string | null = null;
+        const preferredFormats = [
+          "text/plain; charset=utf-8",
+          "text/plain",
+          "text/html; charset=utf-8",
+          "text/html",
+        ];
+
+        for (const fmt of preferredFormats) {
+          if (typeof formats[fmt] === "string") {
+            readUrl = formats[fmt];
+            break;
+          }
+        }
+
+        // fallback: any readable format
+        if (!readUrl) {
+          const candidate = Object.values(formats).find(
+            (v) =>
+              typeof v === "string" &&
+              (v.endsWith(".txt") ||
+                v.endsWith(".htm") ||
+                v.endsWith(".html") ||
+                v.includes("/files/"))
+          );
+          readUrl = typeof candidate === "string" ? candidate : null;
+        }
 
         return {
-          id: d.key || ia || (d.cover_edition_key ?? d.edition_key?.[0] ?? d.title),
-          title: d.title ?? "Untitled",
-          author: d.author_name ? d.author_name[0] : "Unknown",
-          coverUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : "/placeholder-book.jpg",
+          id: String(data.id),
+          title: data.title,
+          author: data.authors?.[0]?.name || "Unknown",
+          coverUrl:
+            data.formats?.["image/jpeg"] ||
+            data.formats?.["image/jpg"] ||
+            "/placeholder-book.jpg",
           readUrl,
-          source: ia ? "Internet Archive" : "OpenLibrary",
-        } as Book;
-      });
+          source: "gutenberg",
+        };
+      }
+
+      // 📚 Open Library
+      case "openlibrary": {
+        const workId = idPart.startsWith("/works/")
+          ? idPart
+          : `/works/${idPart}`;
+        const res = await fetch(`https://openlibrary.org${workId}.json`);
+        if (!res.ok) return null;
+
+        const data = await res.json();
+        const coverId = data.covers?.[0];
+        return {
+          id: data.key,
+          title: data.title || "Untitled",
+          author:
+            data.authors && data.authors.length
+              ? "Open Library Author"
+              : "Unknown",
+          coverUrl: coverId
+            ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
+            : "/placeholder-book.jpg",
+          readUrl: `https://openlibrary.org${data.key}`,
+          source: "openlibrary",
+        };
+      }
+
+      // 🗄️ Internet Archive
+      case "internetarchive": {
+        const identifier = idPart;
+        const metadataRes = await fetch(
+          `https://archive.org/metadata/${identifier}`
+        );
+        if (!metadataRes.ok) return null;
+        const metadata = await metadataRes.json();
+
+        return {
+          id: identifier,
+          title: metadata.metadata?.title || "Untitled",
+          author: metadata.metadata?.creator || "Unknown",
+          coverUrl: `https://archive.org/services/img/${identifier}`,
+          readUrl: `https://archive.org/download/${identifier}/${identifier}.pdf`,
+          source: "internetarchive",
+        };
+      }
+
+      default:
+        return null;
     }
-
-    // Fallback to Internet Archive advanced search
-    const archiveRes = await fetch(
-      `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&fl[]=identifier,title,creator&rows=12&output=json`
-    );
-    const archiveData = await archiveRes.json();
-
-    if (archiveData.response?.docs?.length > 0) {
-      return archiveData.response.docs.map((b: any) => ({
-        id: b.identifier,
-        title: b.title || "Untitled",
-        author: b.creator || "Unknown",
-        coverUrl: `https://archive.org/services/img/${b.identifier}`,
-        readUrl: `https://archive.org/download/${b.identifier}/${b.identifier}.pdf`,
-        source: "Internet Archive",
-      }));
-    }
-
-    return [];
-  } catch (err) {
-    console.error("fetchBooks error:", err);
-    return [];
+  } catch (error) {
+    console.error("fetchBookBySource failed:", error);
+    return null;
   }
 }
