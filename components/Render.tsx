@@ -280,6 +280,9 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
         <button onClick={toggleFavorite} className={`p-3 rounded-full ${isFavorite ? "bg-amber-400 text-black" : "bg-black/70 text-white"}`} title="Favorite">
           <FiHeart />
         </button>
+        <button title="Share" onClick={handleShare} className="p-3 rounded-full bg-black/70 text-white ">
+            <FiShare2 />
+          </button>
         <button onClick={openSummary} className="p-3 rounded-full bg-black/70 text-white" title="Summarize current page">
           <FiBookOpen />
         </button>
