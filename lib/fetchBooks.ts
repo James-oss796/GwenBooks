@@ -16,7 +16,7 @@ function getCached(query: string): Book[] | null {
   return cached.data;
 }
 
-// 🔍 MAIN FETCH FUNCTION — Google Books first
+// 🔍 MAIN FETCH FUNCTION — Google Books first, with readability filtering
 export async function fetchBooks(query: string): Promise<Book[]> {
   if (!query) return [];
 
@@ -26,97 +26,131 @@ export async function fetchBooks(query: string): Promise<Book[]> {
   const results: Book[] = [];
 
   try {
-    // 1️⃣ GOOGLE BOOKS (Main source)
+    // 1️⃣ GUTENBERG - Most reliable for in-app reading (moved to first!)
     try {
-      const googleRes = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-          query
-        )}&maxResults=12`
+      const gutenRes = await fetch(
+        `https://gutendex.com/books?search=${encodeURIComponent(query)}`
       );
-      const googleData = await googleRes.json();
+      const gutenData = await gutenRes.json();
+      if (gutenData.results?.length > 0) {
+        const gutenBooks = gutenData.results
+          .filter((g: any) => {
+            // Only include if it has readable formats
+            const formats = g.formats || {};
+            return (
+              formats["text/html"] ||
+              formats["text/plain; charset=utf-8"] ||
+              formats["text/plain"]
+            );
+          })
+          .slice(0, 8)
+          .map((g: any): Book => {
+            const formats = g.formats || {};
+            // Prioritize formats that work best in-app
+            const readUrl =
+              formats["text/html; charset=utf-8"] ||
+              formats["text/html"] ||
+              formats["text/plain; charset=utf-8"] ||
+              formats["text/plain"];
 
-      if (googleData.items?.length > 0) {
-        const googleBooks = googleData.items.map((item: any): Book => {
-          const volume = item.volumeInfo;
-          return {
-            id: `googlebooks:${item.id}`,
-            title: volume.title || "Untitled",
-            author: volume.authors?.join(", ") || "Unknown",
-            coverUrl:
-              volume.imageLinks?.thumbnail ||
-              volume.imageLinks?.smallThumbnail ||
-              "/placeholder-book.jpg",
-            readUrl: volume.previewLink || volume.infoLink || null,
-            source: "google",
-            coverColor: "#fff",
-          };
-        });
-        results.push(...googleBooks);
+            return {
+              id: `gutenberg:${g.id}`,
+              title: g.title || "Untitled",
+              author: g.authors?.[0]?.name || "Unknown",
+              coverUrl:
+                g.formats["image/jpeg"] ||
+                g.formats["image/jpg"] ||
+                "/placeholder-book.jpg",
+              readUrl,
+              source: "gutenberg",
+              coverColor: "#fff",
+              isFullyReadable: true, // ✅ Can read in-app
+            };
+          });
+        results.push(...gutenBooks);
       }
     } catch (err) {
-      console.error("[GoogleBooks] Failed:", err);
+      console.error("[Gutenberg] Failed:", err);
     }
 
-    // 2️⃣ GUTENBERG (Fallback for public-domain)
+    // 2️⃣ GOOGLE BOOKS - Preview only (external redirect)
     if (results.length < 12) {
       try {
-        const gutenRes = await fetch(
-          `https://gutendex.com/books?search=${encodeURIComponent(query)}`
+        // Try free ebooks first
+        const googleRes = await fetch(
+          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+            query
+          )}&filter=free-ebooks&maxResults=15`
         );
-        const gutenData = await gutenRes.json();
-        if (gutenData.results?.length > 0) {
-          const gutenBooks = gutenData.results.slice(0, 12).map((g: any): Book => ({
-            id: `gutenberg:${g.id}`,
-            title: g.title || "Untitled",
-            author: g.authors?.[0]?.name || "Unknown",
-            coverUrl:
-              g.formats["image/jpeg"] ||
-              g.formats["image/jpg"] ||
-              "/placeholder-book.jpg",
-            readUrl:
-              g.formats["application/pdf"] ||
-              g.formats["text/html"] ||
-              g.formats["text/plain; charset=utf-8"] ||
-              "#",
-            source: "gutenberg",
-            coverColor: "#fff",
-          }));
-          results.push(...gutenBooks);
+        const googleData = await googleRes.json();
+
+        if (googleData.items?.length > 0) {
+          const googleBooks = googleData.items
+            .filter((item: any) => {
+              const accessInfo = item.accessInfo;
+              return (
+                accessInfo &&
+                accessInfo.webReaderLink &&
+                (accessInfo.viewability === "ALL_PAGES" ||
+                  accessInfo.viewability === "PARTIAL" ||
+                  accessInfo.accessViewStatus === "FULL_PUBLIC_DOMAIN")
+              );
+            })
+            .map((item: any): Book => {
+              const volume = item.volumeInfo;
+              const accessInfo = item.accessInfo;
+
+              return {
+                id: `googlebooks:${item.id}`,
+                title: volume.title || "Untitled",
+                author: volume.authors?.join(", ") || "Unknown",
+                coverUrl:
+                  volume.imageLinks?.thumbnail ||
+                  volume.imageLinks?.smallThumbnail ||
+                  "/placeholder-book.jpg",
+                readUrl: accessInfo.webReaderLink,
+                source: "google",
+                coverColor: "#fff",
+                isFullyReadable: false, // ⚠️ External redirect only
+              };
+            })
+            .slice(0, 8);
+
+          results.push(...googleBooks);
         }
       } catch (err) {
-        console.error("[Gutenberg] Failed:", err);
+        console.error("[GoogleBooks] Failed:", err);
       }
     }
 
-    // 3️⃣ OPEN LIBRARY (extra fallback)
+    // 3️⃣ OPEN LIBRARY (external redirect to Internet Archive)
     if (results.length < 12) {
       try {
         const olRes = await fetch(
           `https://openlibrary.org/search.json?q=${encodeURIComponent(
             query
-          )}&limit=12`
+          )}&limit=20&has_fulltext=true`
         );
         const ol = await olRes.json();
         if (ol.docs?.length > 0) {
-          const olBooks = ol.docs.slice(0, 12).map((d: any): Book => {
-            const ia = d.ia ? d.ia[0] : d.identifier?.[0] || null;
-            const readUrl = ia
-              ? `https://archive.org/download/${ia}/${ia}.pdf`
-              : d.key
-              ? `https://openlibrary.org${d.key}`
-              : "https://openlibrary.org";
-            return {
-              id: `openlibrary:${d.key || ia}`,
-              title: d.title ?? "Untitled",
-              author: d.author_name ? d.author_name[0] : "Unknown",
-              coverUrl: d.cover_i
-                ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`
-                : "/placeholder-book.jpg",
-              readUrl,
-              source: "openlibrary",
-              coverColor: "#fff",
-            };
-          });
+          const olBooks = ol.docs
+            .filter((d: any) => d.ia && d.ia.length > 0)
+            .slice(0, 8)
+            .map((d: any): Book => {
+              const ia = d.ia[0];
+              return {
+                id: `openlibrary:${ia}`,
+                title: d.title ?? "Untitled",
+                author: d.author_name ? d.author_name[0] : "Unknown",
+                coverUrl: d.cover_i
+                  ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`
+                  : "/placeholder-book.jpg",
+                readUrl: `https://archive.org/details/${ia}`,
+                source: "openlibrary",
+                coverColor: "#fff",
+                isFullyReadable: false, // ⚠️ External redirect
+              };
+            });
           results.push(...olBooks);
         }
       } catch (err) {
@@ -124,26 +158,29 @@ export async function fetchBooks(query: string): Promise<Book[]> {
       }
     }
 
-    // 4️⃣ INTERNET ARCHIVE (final fallback)
-    if (results.length === 0) {
+    // 4️⃣ INTERNET ARCHIVE (external redirect)
+    if (results.length < 10) {
       try {
         const archiveRes = await fetch(
           `https://archive.org/advancedsearch.php?q=${encodeURIComponent(
             query
-          )}&fl[]=identifier,title,creator&rows=12&output=json`
+          )}%20AND%20mediatype:texts&fl[]=identifier,title,creator&rows=10&output=json`
         );
         const archiveData = await archiveRes.json();
 
         if (archiveData.response?.docs?.length > 0) {
-          const archiveBooks = archiveData.response.docs.map((b: any): Book => ({
-            id: `internetarchive:${b.identifier}`,
-            title: b.title || "Untitled",
-            author: b.creator || "Unknown",
-            coverUrl: `https://archive.org/services/img/${b.identifier}`,
-            readUrl: `https://archive.org/download/${b.identifier}/${b.identifier}.pdf`,
-            source: "internetarchive",
-            coverColor: "#fff",
-          }));
+          const archiveBooks = archiveData.response.docs
+            .slice(0, 6)
+            .map((b: any): Book => ({
+              id: `internetarchive:${b.identifier}`,
+              title: b.title || "Untitled",
+              author: b.creator || "Unknown",
+              coverUrl: `https://archive.org/services/img/${b.identifier}`,
+              readUrl: `https://archive.org/details/${b.identifier}`,
+              source: "internetarchive",
+              coverColor: "#fff",
+              isFullyReadable: false, // ⚠️ External redirect
+            }));
           results.push(...archiveBooks);
         }
       } catch (err) {
@@ -170,41 +207,22 @@ export async function fetchBookBySource(rawId: string) {
 
   try {
     switch (source) {
-      // 🏛️ Gutenberg
+      // 🏛️ Gutenberg - Only source that works in-app
       case "gutenberg": {
-        const cleanId = idPart.replace(/\D/g, ""); // Remove "OL" or other prefixes
+        const cleanId = idPart.replace(/\D/g, "");
         const res = await fetch(`https://gutendex.com/books/${cleanId}`);
         if (!res.ok) return null;
 
         const data = await res.json();
         const formats = data.formats ?? {};
 
-        let readUrl: string | null = null;
-        const preferredFormats = [
-          "text/plain; charset=utf-8",
-          "text/plain",
-          "text/html; charset=utf-8",
-          "text/html",
-        ];
-
-        for (const fmt of preferredFormats) {
-          if (typeof formats[fmt] === "string") {
-            readUrl = formats[fmt];
-            break;
-          }
-        }
-
-        if (!readUrl) {
-          const candidate = Object.values(formats).find(
-            (v) =>
-              typeof v === "string" &&
-              (v.endsWith(".txt") ||
-                v.endsWith(".htm") ||
-                v.endsWith(".html") ||
-                v.includes("/files/"))
-          );
-          readUrl = typeof candidate === "string" ? candidate : null;
-        }
+        // Get the best readable format
+        const readUrl =
+          formats["text/html; charset=utf-8"] ||
+          formats["text/html"] ||
+          formats["text/plain; charset=utf-8"] ||
+          formats["text/plain"] ||
+          null;
 
         return {
           id: String(data.id),
@@ -216,35 +234,50 @@ export async function fetchBookBySource(rawId: string) {
             "/placeholder-book.jpg",
           readUrl,
           source: "gutenberg",
+          isFullyReadable: true,
         };
       }
 
-      // 📚 Open Library
-      case "openlibrary": {
-        const workId = idPart.startsWith("/works/")
-          ? idPart
-          : `/works/${idPart}`;
-        const res = await fetch(`https://openlibrary.org${workId}.json`);
+      // 📖 Google Books - External only
+      case "googlebooks": {
+        const res = await fetch(
+          `https://www.googleapis.com/books/v1/volumes/${idPart}`
+        );
         if (!res.ok) return null;
 
         const data = await res.json();
-        const coverId = data.covers?.[0];
+        const volume = data.volumeInfo;
+        const accessInfo = data.accessInfo;
+
         return {
-          id: data.key,
-          title: data.title || "Untitled",
-          author:
-            data.authors && data.authors.length
-              ? "Open Library Author"
-              : "Unknown",
-          coverUrl: coverId
-            ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
-            : "/placeholder-book.jpg",
-          readUrl: `https://openlibrary.org${data.key}`,
-          source: "openlibrary",
+          id: data.id,
+          title: volume.title,
+          author: (volume.authors && volume.authors.join(", ")) || "Unknown",
+          coverUrl:
+            volume.imageLinks?.thumbnail ||
+            volume.imageLinks?.smallThumbnail ||
+            "/placeholder-book.jpg",
+          readUrl: accessInfo?.webReaderLink || volume.previewLink,
+          source: "googlebooks",
+          isFullyReadable: false,
         };
       }
 
-      // 🗄️ Internet Archive
+      // 📚 Open Library - External (redirects to Internet Archive)
+      case "openlibrary": {
+        const identifier = idPart;
+        return {
+          id: identifier,
+          title: "Book",
+          author: "Unknown",
+          coverUrl: "/placeholder-book.jpg",
+          readUrl: `https://archive.org/details/${identifier}`,
+          source: "openlibrary",
+          isFullyReadable: false,
+        };
+      }
+
+      // 🗄️ Internet Archive - External only
       case "internetarchive": {
         const identifier = idPart;
         const metadataRes = await fetch(
@@ -258,35 +291,9 @@ export async function fetchBookBySource(rawId: string) {
           title: metadata.metadata?.title || "Untitled",
           author: metadata.metadata?.creator || "Unknown",
           coverUrl: `https://archive.org/services/img/${identifier}`,
-          readUrl: `https://archive.org/download/${identifier}/${identifier}.pdf`,
+          readUrl: `https://archive.org/details/${identifier}`,
           source: "internetarchive",
-        };
-      }
-
-      // 📖 Google Books (New!)
-      case "googlebooks": {
-        const apiKey = process.env.GOOGLE_BOOKS_API_KEY; // Optional if you have one
-        const res = await fetch(
-          `https://www.googleapis.com/books/v1/volumes/${idPart}${
-            apiKey ? `?key=${apiKey}` : ""
-          }`
-        );
-        if (!res.ok) return null;
-
-        const data = await res.json();
-        const volume = data.volumeInfo;
-
-        return {
-          id: data.id,
-          title: volume.title,
-          author: (volume.authors && volume.authors.join(", ")) || "Unknown",
-          coverUrl:
-            volume.imageLinks?.thumbnail ||
-            volume.imageLinks?.smallThumbnail ||
-            "/placeholder-book.jpg",
-          readUrl:
-            volume.previewLink || volume.infoLink || null,
-          source: "googlebooks",
+          isFullyReadable: false,
         };
       }
 

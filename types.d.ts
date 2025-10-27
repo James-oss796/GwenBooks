@@ -17,6 +17,7 @@ interface Book {
     readUrl?: string;
     source?: "gutenberg" | "openlibrary" | "internetarchive"|
     "google"; 
+     isFullyReadable?: boolean;
   }
   
   interface AuthCredentials {
