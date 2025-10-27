@@ -63,7 +63,7 @@ return () => img.removeEventListener("load", handleLoad);
 
 const handleClick = (e: React.MouseEvent) => {
 e.preventDefault();
-setIsLoading(true);
+setIsLoading(false);
 
 setTimeout(() => {
   const safeSource = (source || "gutenberg").toLowerCase();

@@ -29,59 +29,27 @@ const [loadingLinks, setLoadingLinks] = useState(false);
 
 // --- Auto-attempt to find missing download links ---
 useEffect(() => {
+ async function getServerLinks() {
+    if (links.length) return;
+    try {
+      const res = await fetch(`/api/books/${book.id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.links?.length) setLinks(data.links);
+    } catch (err) {
+      console.warn("Server-side link fetch failed", err);
+    }
+  }
+  getServerLinks();
+
 async function fetchFallbackLinks() {
-if (links.length || !book.title) return;
-setLoadingLinks(true);
-try {
-const query = encodeURIComponent(book.title.trim());
-const sources = [
-'https://gutendex.com/books?search=${query}',
-'https://openlibrary.org/search.json?title=${query}',
-'https://archive.org/advancedsearch.php?q=${query}&output=json',
-];
+  if (links.length || !book.title) return;
+  setLoadingLinks(true);
 
-    const responses = await Promise.allSettled(
-      sources.map((url) => fetch(url).then((r) => r.json()))
-    );
-
-    const foundLinks: { format: string; url: string }[] = [];
-
-    // --- Gutenberg ---
-    const gutenberg = responses[0].status === "fulfilled" ? responses[0].value : null;
-    if (gutenberg?.results?.length) {
-      const match = gutenberg.results[0];
-      if (match.formats["application/pdf"]) {
-        foundLinks.push({ format: "PDF", url: match.formats["application/pdf"] });
-      } else if (match.formats["text/plain"]) {
-        foundLinks.push({ format: "TXT", url: match.formats["text/plain"] });
-      }
-    }
-
-    // --- OpenLibrary ---
-    const openlib = responses[1].status === "fulfilled" ? responses[1].value : null;
-    if (openlib?.docs?.length) {
-      const doc = openlib.docs[0];
-      if (doc.ebook_access === "public" && doc.key) {
-        foundLinks.push({
-          format: "OL_READ",
-          url: `https://openlibrary.org${doc.key}`,
-        });
-      }
-    }
-
-    // --- Internet Archive ---
-    const archive = responses[2].status === "fulfilled" ? responses[2].value : null;
-    if (archive?.response?.docs?.length) {
-      const doc = archive.response.docs[0];
-      if (doc.identifier) {
-        foundLinks.push({
-          format: "IA",
-          url: `https://archive.org/download/${doc.identifier}`,
-        });
-      }
-    }
-
-    if (foundLinks.length) setLinks(foundLinks);
+  try {
+    const res = await fetch(`/api/downloads?title=${encodeURIComponent(book.title)}`);
+    const data = await res.json();
+    if (data.links?.length) setLinks(data.links);
   } catch (e) {
     console.warn("Fallback link search failed", e);
   } finally {
@@ -89,44 +57,17 @@ const sources = [
   }
 }
 
+
 fetchFallbackLinks();
 
 
 }, [book.title, links.length]);
 
-async function handleDownload(url: string, format: string) {
-try {
-setDownloading(true);
-setProgress(10);
-
-  const response = await fetch(url);
-  const blob = await response.blob();
-
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${book.title}.${format.toLowerCase()}`;
-  link.click();
-
-  // Simulate progress
-  let fakeProgress = 10;
-  const interval = setInterval(() => {
-    fakeProgress += 10;
-    setProgress(fakeProgress);
-    if (fakeProgress >= 100) {
-      clearInterval(interval);
-      setTimeout(() => {
-        setDownloading(false);
-        setProgress(0);
-      }, 600);
-    }
-  }, 150);
-} catch (error) {
-  console.error("Download failed:", error);
-  setDownloading(false);
+function handleDownload(url: string) {
+  // Open in a new tab or start download directly
+  window.open(url, "_blank");
 }
 
-
-}
 
 return (
 <div className="root-container flex flex-col items-center justify-center text-center py-20 px-6 bg-gradient-to-b from-dark-800 to-dark-950">
@@ -181,7 +122,7 @@ but you can still try downloading it below.
       links.map((link) => (
         <Button
           key={link.format}
-          onClick={() => handleDownload(link.url, link.format)}
+          onClick={() => handleDownload(link.url)}
           disabled={downloading}
           className="bg-primary text-dark-100 hover:bg-primary/90 w-full flex items-center justify-center gap-2 font-bold shadow-md"
         >
