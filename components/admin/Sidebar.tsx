@@ -51,11 +51,13 @@ const Sidebar = ({session}: {session: Session}) => {
         </div>
 
         <div className='user'>
-        <Avatar>
+            <Link href="/my-profile">
+             <Avatar>
             
             <AvatarFallback className='bg-amber-100 text-black'>{getInitials( session?.user?.name || "IN")}</AvatarFallback>
            </Avatar>
-
+</Link>
+       
            < div className='flex flex-col max-md:hidden'>
            <p className='font-semibold text-dark-200'>{session?.user?.name}</p>
            <p className='text-light-500 text-xs'>{session?.user?.email}</p>
