@@ -3,6 +3,7 @@ import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import type { NextAuthConfig } from "next-auth";
 import { signInWithCredentials } from "@/lib/actions/auth";
+ import { syncGoogleUser } from "@/lib/actions/syncUsers";
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -45,23 +46,32 @@ export const authConfig: NextAuthConfig = {
 
   session: { strategy: "jwt" },
 
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.user = {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        };
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token.user) {
-        // @ts-ignore
-        session.user = token.user;
-      }
-      return session;
-    },
+ 
+
+callbacks: {
+  async jwt({ token, user, account }) {
+    if (user && account?.provider === "google") {
+      // Sync Google users into your Neon + Drizzle database
+      await syncGoogleUser(user.email!, user.name || "Google User");
+    }
+
+    if (user) {
+      token.user = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      };
+    }
+    return token;
   },
+
+  async session({ session, token }) {
+    if (token.user) {
+      // @ts-ignore
+      session.user = token.user;
+    }
+    return session;
+  },
+},
+
 };
