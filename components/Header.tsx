@@ -13,20 +13,21 @@ const Header = ({ session }: { session: Session }) => {
   return (
     <header
       className={cn(
-        'sticky top-0 z-50 backdrop-blur-lg bg-white/10 border-b border-white/20 shadow-sm',
-        'flex justify-between items-center gap-5 px-6 py-4 rounded-b-2xl'
+        // Floating glassmorphic container
+        'sticky top-4 z-50 mx-auto w-[95%] max-w-7xl backdrop-blur-xl bg-white/10 border border-white/20 shadow-lg rounded-3xl',
+        'flex justify-between items-center gap-5 px-8 py-4'
       )}
     >
       <Link href='/'>
-        <Image src="/icons/logo.svg" alt="logo" width={40} height={40} />
+        <Image src="/icons/logo.svg" alt="logo" width={45} height={45} />
       </Link>
 
-      <ul className='flex flex-row items-center gap-8'>
+      <ul className='flex flex-row items-center gap-10'>
         <li>
           <Link
             href="/library"
             className={cn(
-              'text-base cursor-pointer capitalize transition-colors duration-300',
+              'text-base cursor-pointer capitalize transition-colors duration-300 font-medium',
               pathname.startsWith('/library')
                 ? 'text-white'
                 : 'text-white/80 hover:text-white'
