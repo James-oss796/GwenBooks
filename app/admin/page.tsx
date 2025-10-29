@@ -67,6 +67,7 @@ export default async function AdminDashboard() {
       {/* Recent Activity */}
       <section className="bg-white shadow-md border border-gray-200 rounded-xl p-6">
         <h2 className="text-xl font-semibold mb-4">Recent User Activity</h2>
+        <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
             <tr className="text-left text-gray-500 text-sm border-b">
@@ -93,6 +94,7 @@ export default async function AdminDashboard() {
             )}
           </tbody>
         </table>
+        </div>
       </section>
     </main>
   );
