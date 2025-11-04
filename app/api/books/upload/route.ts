@@ -70,6 +70,7 @@ export async function POST(req: Request) {
         fileUrl,
         coverUrl: "", // optional cover
         fileType: file.type || "pdf",
+        status: "PENDING"
       })
       .returning();
 

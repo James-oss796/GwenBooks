@@ -104,9 +104,7 @@ export const reading_progress = pgTable("reading_progress", {
 
 export const uploaded_books = pgTable("uploaded_books", {
   id: serial("id").primaryKey(),
-  uploaderId: uuid("uploader_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
+  uploaderId: uuid("uploader_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   title: varchar("title", { length: 255 }).notNull(),
   author: varchar("author", { length: 255 }).default("Unknown"),
   description: text("description"),
@@ -114,11 +112,13 @@ export const uploaded_books = pgTable("uploaded_books", {
   language: varchar("language", { length: 50 }).default("English"),
   fileUrl: text("file_url").notNull(),
   coverUrl: text("cover_url"),
-  status: varchar("status", { length: 20 }).default("pending"),
   fileType: varchar("file_type", { length: 20 }).default("pdf"),
-  likesCount: text("likes_count").default("0"),
-  viewsCount: text("views_count").default("0"),
-  isPublic: boolean("is_public").default(true),
+  likesCount: integer("likes_count").default(0), // change to integer
+  viewsCount: integer("views_count").default(0), // change to integer
+  isPublic: boolean("is_public").default(false),
+  status: varchar("status", { length: 20 }).default("PENDING"), // NEW
+  adminNote: text("admin_note"),
+  approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -134,5 +134,15 @@ export const pending_uploads = pgTable("pending_uploads", {
   language: text("language"),
   fileUrl: text("file_url").notNull(),
   status: text("status").default("pending"), // pending | approved | rejected
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), // who receives
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  url: text("url"), // link to admin/book page or external
+  isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });

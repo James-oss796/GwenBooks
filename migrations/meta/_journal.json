@@ -78,6 +78,13 @@
       "when": 1762252974126,
       "tag": "0010_ancient_pet_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1762259272108,
+      "tag": "0011_cheerful_ikaris",
+      "breakpoints": true
     }
   ]
 }
