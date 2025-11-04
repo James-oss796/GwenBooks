@@ -29,9 +29,9 @@ export const navigationLinks = [
       text: "All Books",
     },
     {
-      img: "/icons/admin/bookmark.svg",
-      route: "/admin/book-requests",
-      text: "Borrow Requests",
+      img: "/icons/admin/arrow.svg",
+      route: "/admin/approvals",
+      text: "Upload Requests",
     },
     {
       img: "/icons/admin/user.svg",

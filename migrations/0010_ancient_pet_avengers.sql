@@ -1,0 +1,1 @@
+ALTER TABLE "uploaded_books" ADD COLUMN "status" varchar(20) DEFAULT 'pending';

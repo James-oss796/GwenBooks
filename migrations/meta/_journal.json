@@ -57,6 +57,27 @@
       "when": 1760965580428,
       "tag": "0007_quiet_next_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1762167121226,
+      "tag": "0008_stormy_sentinels",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1762250814534,
+      "tag": "0009_needy_wilson_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1762252974126,
+      "tag": "0010_ancient_pet_avengers",
+      "breakpoints": true
     }
   ]
 }

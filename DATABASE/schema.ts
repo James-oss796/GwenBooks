@@ -102,3 +102,37 @@ export const reading_progress = pgTable("reading_progress", {
 }));
 
 
+export const uploaded_books = pgTable("uploaded_books", {
+  id: serial("id").primaryKey(),
+  uploaderId: uuid("uploader_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  author: varchar("author", { length: 255 }).default("Unknown"),
+  description: text("description"),
+  genre: varchar("genre", { length: 100 }),
+  language: varchar("language", { length: 50 }).default("English"),
+  fileUrl: text("file_url").notNull(),
+  coverUrl: text("cover_url"),
+  status: varchar("status", { length: 20 }).default("pending"),
+  fileType: varchar("file_type", { length: 20 }).default("pdf"),
+  likesCount: text("likes_count").default("0"),
+  viewsCount: text("views_count").default("0"),
+  isPublic: boolean("is_public").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+
+export const pending_uploads = pgTable("pending_uploads", {
+  id: serial("id").primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  title: text("title").notNull(),
+  author: text("author"),
+  description: text("description"),
+  genre: text("genre"),
+  language: text("language"),
+  fileUrl: text("file_url").notNull(),
+  status: text("status").default("pending"), // pending | approved | rejected
+  createdAt: timestamp("created_at").defaultNow(),
+});
