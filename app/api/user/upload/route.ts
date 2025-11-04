@@ -58,8 +58,7 @@ export async function POST(req: Request) {
       fileUrl: publicUrlData.publicUrl,
       isPublic: false,
       fileType: "pdf",
-      // we manually handle "pending" through a status column if you’ve added it
-      // if not added yet, we’ll add next
+      status: "pending",
     });
 
     return NextResponse.json({ success: true });
