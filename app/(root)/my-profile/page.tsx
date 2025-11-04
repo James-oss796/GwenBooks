@@ -8,7 +8,6 @@ import BookSearch from '@/components/BookSearch'
 import { handleLogout } from '@/app/actions/logout'
 import Link from 'next/link'
 
-
 interface Book {
   id: string
   title: string
@@ -81,7 +80,7 @@ const Page = () => {
   </div>
   {/* My Uploads Button */}
   <Button asChild>
-      <Link href="/users/upload">📘 My Uploads</Link>
+      <Link href="/users/my-upload">📘 My Uploads</Link>
    </Button>
 
 
