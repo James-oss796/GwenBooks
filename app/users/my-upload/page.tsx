@@ -7,7 +7,7 @@ export default function MyUploadsPage() {
   const [uploads, setUploads] = useState<any[]>([]);
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/user/uploads");
+      const res = await fetch("/api/user/books/upload");
       const data = await res.json();
       setUploads(data.uploads || []);
     })();

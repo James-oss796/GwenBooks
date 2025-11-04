@@ -1,7 +1,10 @@
+"use client";
 import { db } from "@/DATABASE/drizzle";
 import { uploaded_books, users } from "@/DATABASE/schema";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
+import { toast } from "sonner";
+import { useTransition } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -22,16 +25,33 @@ export default async function ApprovalsPage() {
     })
     .from(uploaded_books)
     .leftJoin(users, eq(users.id, uploaded_books.uploaderId))
-    .where(eq(uploaded_books.status, "PENDING"));
+    .where(eq(uploaded_books.status, "pending"));
+
+  // ✅ Button handler (replaces form submission)
+  async function handleAction(id: number, action: "approve" | "reject") {
+    const res = await fetch(`/api/books/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      toast.success(
+        action === "approve"
+          ? "✅ Book approved successfully!"
+          : "❌ Book rejected successfully!"
+      );
+    } else {
+      toast.error(data.error || "Something went wrong!");
+    }
+  }
 
   return (
     <main className="max-w-6xl mx-auto py-10 px-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-blue-700">📚 Pending Book Approvals</h1>
-        <Link
-          href="/admin"
-          className="text-sm text-blue-600 hover:underline"
-        >
+        <Link href="/admin" className="text-sm text-blue-600 hover:underline">
           ← Back to Dashboard
         </Link>
       </div>
@@ -79,26 +99,21 @@ export default async function ApprovalsPage() {
                 </span>
               </div>
 
+              {/* ✅ Replaced the old forms here */}
               <div className="flex gap-3 mt-5">
-                <form action="/api/admin/books/approve" method="POST" className="w-1/2">
-                  <input type="hidden" name="id" value={book.id} />
-                  <button
-                    type="submit"
-                    className="bg-green-600 hover:bg-green-700 text-white w-full py-2 rounded-lg text-sm font-semibold"
-                  >
-                     Approve
-                  </button>
-                </form>
+                <button
+                  onClick={() => handleAction(book.id, "approve")}
+                  className="bg-green-600 hover:bg-green-700 text-white w-1/2 py-2 rounded-lg text-sm font-semibold"
+                >
+                  ✅ Approve
+                </button>
 
-                <form action="/api/admin/books/reject" method="POST" className="w-1/2">
-                  <input type="hidden" name="id" value={book.id} />
-                  <button
-                    type="submit"
-                    className="bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded-lg text-sm font-semibold"
-                  >
-                     Reject
-                  </button>
-                </form>
+                <button
+                  onClick={() => handleAction(book.id, "reject")}
+                  className="bg-red-600 hover:bg-red-700 text-white w-1/2 py-2 rounded-lg text-sm font-semibold"
+                >
+                  ❌ Reject
+                </button>
               </div>
             </div>
           ))}
