@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import UploadForm from "@/components/UploadForm";
 
 export default function UserUploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -49,28 +50,7 @@ export default function UserUploadPage() {
   return (
     <main className="max-w-2xl mx-auto py-10 px-4">
       <h1 className="text-2xl font-bold mb-6 text-blue-700">Upload a Book</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input name="title" placeholder="Book Title" required />
-        <Input name="author" placeholder="Author Name" />
-        <Input name="genre" placeholder="Genre" />
-        <Input name="language" placeholder="Language" />
-        <Textarea name="description" placeholder="Short description..." />
-        <label htmlFor="file" className="block text-sm font-medium text-gray-700">
-          Upload File
-        </label>  
-        <input
-          id="file"
-          type="file"
-          accept=".pdf,.epub"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          required
-        />
-
-        {loading && <Progress value={progress} className="w-full" />}
-        <Button type="submit" disabled={loading}>
-          {loading ? "Uploading..." : "Upload Book"}
-        </Button>
-      </form>
+     <UploadForm />
     </main>
   );
 }

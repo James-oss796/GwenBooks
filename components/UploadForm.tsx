@@ -26,7 +26,7 @@ export default function UploadForm() {
 
       toast({ title: "Submitted", description: "Your book is submitted for admin approval." });
       // navigate back to my uploads or clear form
-      (window as any).location.href = "/my-uploads";
+      (window as any).location.href = "/users/my-upload";
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message || "Try again." });
     } finally {

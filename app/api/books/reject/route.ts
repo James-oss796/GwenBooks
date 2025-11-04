@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
     await db
       .update(uploaded_books)
-      .set({ status: "rejected", adminNote: "Rejected by admin review" })
+      .set({ status: "REJECTED", adminNote: "Rejected by admin review" })
       .where(eq(uploaded_books.id, Number(id)));
 
     return NextResponse.redirect("/admin/approvals");

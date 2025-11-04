@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
     await db
       .update(uploaded_books)
-      .set({ status: "approved", isPublic: true })
+      .set({ status: "APPPROVED", isPublic: true })
       .where(eq(uploaded_books.id, Number(id)));
 
     return NextResponse.redirect("/admin/approvals");

@@ -58,7 +58,7 @@ export async function POST(req: Request) {
       fileUrl: publicUrlData.publicUrl,
       isPublic: false,
       fileType: "pdf",
-      status: "pending",
+      status: "PENDING",
     });
 
     return NextResponse.json({ success: true });
