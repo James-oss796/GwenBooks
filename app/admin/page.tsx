@@ -1,9 +1,10 @@
 import { db } from "@/DATABASE/drizzle"; // your Drizzle instance
-import { users, reading_progress, favorites } from "@/DATABASE/schema";
-import { eq, countDistinct } from "drizzle-orm";
+import { users, reading_progress, favorites, uploaded_books } from "@/DATABASE/schema";
+import { countDistinct, eq, sql } from "drizzle-orm";
 import React from "react";
-import { FiBookOpen, FiUser, FiHeart } from "react-icons/fi";
+import { FiBookOpen, FiUser, FiHeart, FiInbox } from "react-icons/fi";
 import Image from 'next/image'
+import Link from "next/link";
 
 export const revalidate = 0; // always fetch latest data
 
@@ -11,6 +12,16 @@ async function getDashboardStats() {
   const [userCount] = await db.select({ count: countDistinct(users.id) }).from(users);
   const [booksReadCount] = await db.select({ count: countDistinct(reading_progress.bookId) }).from(reading_progress);
   const [favoriteCount] = await db.select({ count: countDistinct(favorites.bookId) }).from(favorites);
+
+  const [pendingUploadCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(uploaded_books)
+    .where(eq(uploaded_books.status, "PENDING"));
+
+  const [pendingAccountCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(users)
+    .where(eq(users.status, "PENDING"));
 
   const recentUsers = await db
     .select({
@@ -27,12 +38,15 @@ async function getDashboardStats() {
     userCount: userCount?.count || 0,
     booksReadCount: booksReadCount?.count || 0,
     favoriteCount: favoriteCount?.count || 0,
+    pendingUploadCount: pendingUploadCount?.count || 0,
+    pendingAccountCount: pendingAccountCount?.count || 0,
     recentUsers,
   };
 }
 
 export default async function AdminDashboard() {
-  const { userCount, booksReadCount, favoriteCount, recentUsers } = await getDashboardStats();
+  const { userCount, booksReadCount, favoriteCount, pendingUploadCount, pendingAccountCount, recentUsers } =
+    await getDashboardStats();
 
   return (
     <main className="min-h-screen text-gray-900 p-6">
@@ -44,7 +58,7 @@ export default async function AdminDashboard() {
                       /> GwenBooks Admin Dashboard</h1>
 
       {/* Stats Grid */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         <div className="bg-white shadow-md border border-gray-200 rounded-xl p-6 flex flex-col items-center">
           <FiUser size={36} className="text-blue-500 mb-3" />
           <h2 className="text-2xl font-semibold">{userCount}</h2>
@@ -61,6 +75,30 @@ export default async function AdminDashboard() {
           <FiHeart size={36} className="text-red-500 mb-3" />
           <h2 className="text-2xl font-semibold">{favoriteCount}</h2>
           <p className="text-gray-500">Favorites</p>
+        </div>
+
+        <div className="bg-white shadow-md border border-gray-200 rounded-xl p-6">
+          <div className="flex items-center justify-center">
+            <FiInbox size={36} className="text-purple-600 mb-3" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Link
+              href="/admin/approvals"
+              className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition"
+            >
+              <div className="text-sm text-gray-500">Upload requests</div>
+              <div className="text-2xl font-semibold text-gray-900">{pendingUploadCount}</div>
+              <div className="text-xs text-blue-700 mt-1">Review →</div>
+            </Link>
+            <Link
+              href="/admin/account-requests"
+              className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition"
+            >
+              <div className="text-sm text-gray-500">Account requests</div>
+              <div className="text-2xl font-semibold text-gray-900">{pendingAccountCount}</div>
+              <div className="text-xs text-blue-700 mt-1">Review →</div>
+            </Link>
+          </div>
         </div>
       </section>
 

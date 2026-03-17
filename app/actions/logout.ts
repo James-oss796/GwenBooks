@@ -5,5 +5,5 @@ import { redirect } from 'next/navigation'
 
 export async function handleLogout() {
   await signOut()
-  redirect('/sign-in')
+  redirect('/sign-up')
 }

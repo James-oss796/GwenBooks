@@ -17,20 +17,28 @@ export default function MyUploadsPage() {
   const approved = uploads.filter((u) => u.status === "APPROVED");
 
   return (
-    <main className="p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-semibold">My uploads</h1>
+    <main className="min-h-screen p-4 sm:p-6 space-y-8 max-w-6xl mx-auto">
+      <header className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-blue-700">My uploads</h1>
         <Button onClick={() => (window.location.href = "/users/upload")}>Upload new</Button>
-      </div>
+      </header>
 
-      <section className="mb-6">
+      <section className="bg-white shadow-md border border-gray-200 rounded-xl p-4 sm:p-6">
         <h2 className="text-lg font-medium mb-2">Pending approval</h2>
-        {pending.length === 0 ? <div className="text-sm text-gray-500">No pending uploads</div> : <BookList books={pending} title="" />}
+        {pending.length === 0 ? (
+          <div className="text-sm text-gray-500">No pending uploads</div>
+        ) : (
+          <BookList books={pending} title="" />
+        )}
       </section>
 
-      <section>
+      <section className="bg-white shadow-md border border-gray-200 rounded-xl p-4 sm:p-6">
         <h2 className="text-lg font-medium mb-2">Approved</h2>
-        {approved.length === 0 ? <div className="text-sm text-gray-500">No approved uploads yet</div> : <BookList books={approved} title="" />}
+        {approved.length === 0 ? (
+          <div className="text-sm text-gray-500">No approved uploads yet</div>
+        ) : (
+          <BookList books={approved} title="" />
+        )}
       </section>
     </main>
   );

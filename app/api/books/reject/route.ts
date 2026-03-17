@@ -3,19 +3,33 @@ import { uploaded_books } from "@/DATABASE/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
+async function readId(req: Request): Promise<number | null> {
+  const contentType = req.headers.get("content-type") || "";
+  try {
+    if (contentType.includes("application/json")) {
+      const body = await req.json();
+      const id = Number(body?.id);
+      return Number.isFinite(id) ? id : null;
+    }
+    const form = await req.formData();
+    const id = Number(form.get("id"));
+    return Number.isFinite(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   try {
-    const form = await req.formData();
-    const id = form.get("id");
-
+    const id = await readId(req);
     if (!id) return NextResponse.json({ error: "Missing book ID" }, { status: 400 });
 
     await db
       .update(uploaded_books)
       .set({ status: "REJECTED", adminNote: "Rejected by admin review" })
-      .where(eq(uploaded_books.id, Number(id)));
+      .where(eq(uploaded_books.id, id));
 
-    return NextResponse.redirect("/admin/approvals");
+    return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Rejection error:", error);
     return NextResponse.json({ error: "Failed to reject" }, { status: 500 });
