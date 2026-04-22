@@ -364,7 +364,7 @@ useEffect(() => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={() => setShowMobileMenu(v => !v)}
-        
+        title="Toggle toolbar"
         className={`p-3 rounded-full shadow-xl transition-transform ${
           showMobileMenu ? "bg-amber-400 text-black rotate-45" : "bg-black/70 text-white"
         }`}
