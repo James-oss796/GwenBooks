@@ -108,20 +108,6 @@ export default function LandingPage() {
           </div>
         </motion.div>
 
-        {/* HERO DEMO → NOW YOUR SYSTEM */}
-        <motion.div className="flex-1">
-          <div className="rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
-
-            <iframe
-              key={activeDemoBook?.id}
-              title="read-demo"
-              src={activeDemoBook?.readUrl || "/read/gutenberg%3A1513"}
-              className="w-full h-[420px]"
-              scrolling="no"
-            />
-
-          </div>
-        </motion.div>
 
       </section>
 

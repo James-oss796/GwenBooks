@@ -14,6 +14,7 @@ import {
   FiMinus,
   FiX,
   FiBookOpen,
+  FiMenu,
 } from "react-icons/fi";
 
 type BookMeta = {
@@ -41,6 +42,12 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const [currentChapter, setCurrentChapter] = useState<number>(0);
+
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMobileToggle, setShowMobileToggle] = useState(true);
+
+  const mobileMenuRef = useRef<HTMLDivElement | null>(null);
+  const mobileToggleInactivityRef = useRef<NodeJS.Timeout | null>(null);
 
   const contentRef = useRef<HTMLDivElement | null>(null);
 
@@ -78,6 +85,50 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
   }, [theme]);
 
   useEffect(() => localStorage.setItem(localKeyFav, String(isFavorite)), [isFavorite]);
+
+useEffect(() => {
+  const resetTimer = () => {
+    setShowMobileToggle(true);
+    if (mobileToggleInactivityRef.current) clearTimeout(mobileToggleInactivityRef.current);
+    mobileToggleInactivityRef.current = setTimeout(() => {
+      if (!showMobileMenu) setShowMobileToggle(false);
+    }, 2000);
+  };
+
+  resetTimer(); // hide after 2s on mount
+
+  const ref = contentRef.current;
+  ref?.addEventListener("scroll", resetTimer);
+  window.addEventListener("mousemove", resetTimer);
+  window.addEventListener("touchstart", resetTimer);
+
+  return () => {
+    if (mobileToggleInactivityRef.current) clearTimeout(mobileToggleInactivityRef.current);
+    ref?.removeEventListener("scroll", resetTimer);
+    window.removeEventListener("mousemove", resetTimer);
+    window.removeEventListener("touchstart", resetTimer);
+  };
+}, [showMobileMenu]);
+
+useEffect(() => {
+  if (!showMobileMenu) return;
+
+  const handleOutsideClick = (e: MouseEvent) => {
+    if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) {
+      setShowMobileMenu(false);
+    }
+  };
+
+  const handleScroll = () => setShowMobileMenu(false);
+
+  document.addEventListener("mousedown", handleOutsideClick);
+  contentRef.current?.addEventListener("scroll", handleScroll);
+
+  return () => {
+    document.removeEventListener("mousedown", handleOutsideClick);
+    contentRef.current?.removeEventListener("scroll", handleScroll);
+  };
+}, [showMobileMenu]);
 
   const progressPct = useMemo(
     () => Math.round(((pageIndex + 1) / pages.length) * 100),
@@ -266,27 +317,65 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
         )}
       </AnimatePresence>
 
-      {/* Mobile Floating Toolbar */}
-      <div className="sm:hidden fixed bottom-5 right-5 flex flex-col gap-3 z-50">
-        <button onClick={() => setTheme(t => (t === "dark" ? "light" : "dark"))} className="p-3 rounded-full bg-black/70 text-white" title="Toggle theme">
-          {theme === "dark" ? <FiSun /> : <FiMoon />}
-        </button>
-        <button onClick={increaseFont} className="p-3 rounded-full bg-black/70 text-white" title="Increase font">
-          <FiPlus />
-        </button>
-        <button onClick={decreaseFont} className="p-3 rounded-full bg-black/70 text-white" title="Decrease font">
-          <FiMinus />
-        </button>
-        <button onClick={toggleFavorite} className={`p-3 rounded-full ${isFavorite ? "bg-amber-400 text-black" : "bg-black/70 text-white"}`} title="Favorite">
-          <FiHeart />
-        </button>
-        <button title="Share" onClick={handleShare} className="p-3 rounded-full bg-black/70 text-white ">
-            <FiShare2 />
-          </button>
-        <button onClick={openSummary} className="p-3 rounded-full bg-black/70 text-white" title="Summarize current page">
-          <FiBookOpen />
-        </button>
-      </div>
+    {/* Mobile Floating Toolbar */}
+<div ref={mobileMenuRef} className="sm:hidden fixed bottom-5 right-5 flex flex-col items-end gap-3 z-50">
+  <AnimatePresence>
+    {showMobileMenu && (
+      <>
+        {[
+          { onClick: openSummary, icon: <FiBookOpen />, title: "Summarize current page" },
+          { onClick: handleShare, icon: <FiShare2 />, title: "Share" },
+          {
+            onClick: toggleFavorite,
+            icon: <FiHeart />,
+            title: "Favorite",
+            className: isFavorite ? "bg-amber-400 text-black" : "bg-black/70 text-white",
+          },
+          { onClick: decreaseFont, icon: <FiMinus />, title: "Decrease font" },
+          { onClick: increaseFont, icon: <FiPlus />, title: "Increase font" },
+          {
+            onClick: () => setTheme(t => (t === "dark" ? "light" : "dark")),
+            icon: theme === "dark" ? <FiSun /> : <FiMoon />,
+            title: "Toggle theme",
+          },
+        ].map((btn, i) => (
+          <motion.button
+            key={btn.title}
+            initial={{ opacity: 0, y: 12, scale: 0.85 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.85 }}
+            transition={{ delay: i * 0.04, type: "spring", stiffness: 300, damping: 22 }}
+            onClick={btn.onClick}
+            title={btn.title}
+            className={`p-3 rounded-full shadow-lg ${btn.className ?? "bg-black/70 text-white"}`}
+          >
+            {btn.icon}
+          </motion.button>
+        ))}
+      </>
+    )}
+  </AnimatePresence>
+
+  {/* Toggle button — disappears after inactivity like prev/next */}
+  <AnimatePresence>
+    {showMobileToggle && (
+      <motion.button
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={() => setShowMobileMenu(v => !v)}
+        
+        className={`p-3 rounded-full shadow-xl transition-transform ${
+          showMobileMenu ? "bg-amber-400 text-black rotate-45" : "bg-black/70 text-white"
+        }`}
+      >
+        {
+          showMobileMenu ? <FiX size={20} /> : <FiMenu size={20} />
+        }
+      </motion.button>
+    )}
+  </AnimatePresence>
+</div>
 
       {/* Summary Modal */}
       <AnimatePresence>
