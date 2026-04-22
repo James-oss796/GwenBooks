@@ -18,7 +18,7 @@ export async function syncGoogleUser(email: string, fullName?: string) {
         fullName: fullName || "Google User",
         email,
         password: "google-oauth", // placeholder
-        status: "ACTIVE",
+        status: "APPROVED",
         role: "USER",
       });
     }

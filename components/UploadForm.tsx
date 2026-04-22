@@ -1,58 +1,114 @@
 "use client";
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast"; // shadcn toast hook (if present)
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export default function UploadForm() {
-  const [file, setFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const { toast } = useToast?.() ?? { toast: (x: any) => alert(x.title || x.description) };
+    const { data: session } = useSession();
+    const router = useRouter();
+    const { toast } = useToast();
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) return toast({ title: "Pick a file", description: "Please select a PDF or EPUB." });
+    const [file, setFile] = useState<File | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [progress, setProgress] = useState(0);
 
-    setSubmitting(true);
-    const fd = new FormData(e.currentTarget as HTMLFormElement);
-    fd.append("file", file);
+    // Redirect if not logged in
+    useEffect(() => {
+        if (session === null) router.push("/sign-in");
+    }, [session, router]);
 
-    try {
-      const res = await fetch("/api/books/upload", { method: "POST", body: fd });
-      const data = await res.json();
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!file) {
+            return toast({
+                title: "No file selected",
+                description: "Please select a PDF or EPUB before submitting.",
+                variant: "destructive",
+            });
+        }
 
-      if (!res.ok) throw new Error(data.error || "Upload failed");
+        setSubmitting(true);
+        setProgress(0);
 
-      toast({ title: "Submitted", description: "Your book is submitted for admin approval." });
-      // navigate back to my uploads or clear form
-      (window as any).location.href = "/users/my-upload";
-    } catch (err: any) {
-      toast({ title: "Upload failed", description: err.message || "Try again." });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+        const formData = new FormData(e.currentTarget);
 
-  return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <Input name="title" placeholder="Book title" required />
-      <Input name="author" placeholder="Author name" />
-      <Input name="genre" placeholder="Genre" />
-      <Input name="language" placeholder="Language" />
-      <Textarea name="description" placeholder="Short description" />
-      <label htmlFor="file" className="block text-sm font-medium">File</label>
+        // Use XMLHttpRequest to track progress
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/user/books/upload");
 
-      <input
-        id="file"
-        name="file"
-        type="file"
-        accept=".pdf,.epub"
-        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        required
-        className="block w-full"
-      />
-      <Button type="submit" disabled={submitting}>{submitting ? "Submitting…" : "Submit for approval"}</Button>
-    </form>
-  );
+        xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+                const percent = Math.round((event.loaded / event.total) * 100);
+                setProgress(percent);
+            }
+        };
+
+        xhr.onload = () => {
+            setSubmitting(false);
+            if (xhr.status === 200) {
+                toast({
+                    title: "✅ Upload successful",
+                    description: "Your book has been submitted for admin approval.",
+                });
+                router.push("/users/my-upload"); // SPA navigation
+            } else {
+                const response = JSON.parse(xhr.responseText);
+                toast({
+                    title: "❌ Upload failed",
+                    description: response.error || "Something went wrong.",
+                    variant: "destructive",
+                });
+            }
+            setProgress(0);
+        };
+
+        xhr.onerror = () => {
+            setSubmitting(false);
+            toast({
+                title: "❌ Upload failed",
+                description: "Network error. Please try again.",
+                variant: "destructive",
+            });
+            setProgress(0);
+        };
+
+        xhr.send(formData);
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4 max-w-2xl mx-auto">
+            <Input name="title" placeholder="Book title" required />
+            <Input name="author" placeholder="Author name" />
+            <Input name="genre" placeholder="Genre" />
+            <Input name="language" placeholder="Language" />
+            <Textarea name="description" placeholder="Short description" />
+
+            <label htmlFor="file" className="block text-sm font-medium">
+                File (PDF / EPUB)
+            </label>
+            <input
+                id="file"
+                name="file"
+                type="file"
+                accept=".pdf,.epub"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                required
+                className="block w-full"
+            />
+
+            {progress > 0 && (
+                <Progress value={progress} max={100} className="h-2 w-full rounded" />
+            )}
+
+            <Button type="submit" disabled={submitting}>
+                {submitting ? `Uploading… ${progress}%` : "Submit for approval"}
+            </Button>
+        </form>
+    );
 }

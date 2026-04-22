@@ -1,33 +1,41 @@
 "use client";
-import { db } from "@/DATABASE/drizzle";
-import { uploaded_books, users } from "@/DATABASE/schema";
-import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { toast } from "sonner";
-import { useTransition } from "react";
+import { useEffect, useState } from "react";
 
 export const dynamic = "force-dynamic";
 
-export default async function ApprovalsPage() {
-  // Fetch all books pending approval with uploader info
-  const pendingBooks = await db
-    .select({
-      id: uploaded_books.id,
-      title: uploaded_books.title,
-      author: uploaded_books.author,
-      genre: uploaded_books.genre,
-      description: uploaded_books.description,
-      createdAt: uploaded_books.createdAt,
-      uploaderId: uploaded_books.uploaderId,
-      fileUrl: uploaded_books.fileUrl,
-      language: uploaded_books.language,
-      uploaderEmail: users.email,
-    })
-    .from(uploaded_books)
-    .leftJoin(users, eq(users.id, uploaded_books.uploaderId))
-    .where(eq(uploaded_books.status, "pending"));
+type PendingBook = {
+  id: number;
+  title: string;
+  description: string | null;
+  genre: string | null;
+  language: string | null;
+  fileUrl: string | null;
+  createdAt: string | null;
+  uploaderEmail: string | null;
+};
 
-  // ✅ Button handler (replaces form submission)
+export default function ApprovalsPage() {
+  const [pendingBooks, setPendingBooks] = useState<PendingBook[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function refresh() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/books/pending", { cache: "no-store" });
+      const data = await res.json();
+      setPendingBooks(Array.isArray(data.books) ? data.books : []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  // ✅ Button handler
   async function handleAction(id: number, action: "approve" | "reject") {
     const res = await fetch(`/api/books/${action}`, {
       method: "POST",
@@ -42,6 +50,7 @@ export default async function ApprovalsPage() {
           ? "✅ Book approved successfully!"
           : "❌ Book rejected successfully!"
       );
+      await refresh();
     } else {
       toast.error(data.error || "Something went wrong!");
     }
@@ -56,7 +65,9 @@ export default async function ApprovalsPage() {
         </Link>
       </div>
 
-      {pendingBooks.length === 0 ? (
+      {loading ? (
+        <p className="text-gray-500 text-center py-10">Loading…</p>
+      ) : pendingBooks.length === 0 ? (
         <p className="text-gray-500 text-center py-10">
           No pending books for approval 🎉
         </p>
@@ -68,35 +79,36 @@ export default async function ApprovalsPage() {
               className="border border-gray-200 rounded-2xl p-5 shadow-sm bg-white hover:shadow-md transition-all"
             >
               <h2 className="font-semibold text-lg text-gray-800">{book.title}</h2>
-              <p className="text-sm text-gray-500">by {book.author}</p>
-
+              {book.uploaderEmail && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Uploaded by{" "}
+                  <span className="font-medium text-blue-700">{book.uploaderEmail}</span>
+                </p>
+              )}
               <p className="mt-2 text-sm text-gray-600 line-clamp-3">
                 {book.description || "No description provided."}
               </p>
 
               <p className="text-xs text-gray-400 mt-1">
-                Genre: {book.genre || "N/A"} • Language: {book.language}
+                Genre: {book.genre || "N/A"} • Language: {book.language || "N/A"}
               </p>
 
-              <p className="text-xs text-gray-500 mt-1">
-                Uploaded by:{" "}
-                <span className="font-medium text-blue-700">
-                  {book.uploaderEmail || "Unknown user"}
-                </span>
-              </p>
-
-              <div className="flex items-center justify-between mt-4">
-                <a
-                  href={book.fileUrl}
-                  target="_blank"
-                  className="text-sm text-blue-600 underline"
-                  rel="noopener noreferrer"
-                >
-                  View File
-                </a>
-                <span className="text-xs text-gray-400">
-                  {new Date(book.createdAt).toLocaleDateString()}
-                </span>
+              <div className="flex items-center justify-between mt-3">
+                {book.fileUrl && (
+                  <a
+                    href={book.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 underline"
+                  >
+                    View file
+                  </a>
+                )}
+                {book.createdAt && (
+                  <span className="text-xs text-gray-400">
+                    {new Date(book.createdAt).toLocaleDateString()}
+                  </span>
+                )}
               </div>
 
               {/* ✅ Replaced the old forms here */}

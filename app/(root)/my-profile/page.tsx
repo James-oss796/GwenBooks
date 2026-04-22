@@ -43,7 +43,7 @@ const Page = () => {
 
     const fetchFavorites = async () => {
       try {
-        const res = await fetch('/api/favorites/add')
+        const res = await fetch('/api/favorites/add', {method: "POST", body: JSON.stringify(favoriteBooks)})
         if (res.ok) {
           const data = await res.json()
           setFavoriteBooks(data.favorites || [])
@@ -55,7 +55,7 @@ const Page = () => {
 
     const fetchRecent = async () => {
       try {
-        const res = await fetch('/api/progress/save')
+        const res = await fetch('/api/progress/save', {method: "POST", body: JSON.stringify(recentBooks)})
         if (res.ok) {
           const data = await res.json()
           setRecentBooks(data.recent || [])

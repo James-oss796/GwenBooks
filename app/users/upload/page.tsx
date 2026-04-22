@@ -48,9 +48,17 @@ export default function UserUploadPage() {
   };
 
   return (
-    <main className="max-w-2xl mx-auto py-10 px-4">
-      <h1 className="text-2xl font-bold mb-6 text-blue-700">Upload a Book</h1>
-     <UploadForm />
+    <main className="min-h-screen p-4 sm:p-6 space-y-8 max-w-6xl mx-auto">
+      <section>
+        <h1 className="text-2xl font-bold mb-4 text-blue-700">Upload a Book</h1>
+        <p className="text-sm text-gray-600 mb-4">
+          Upload your PDF or EPUB and submit it for admin approval. You can track the status on the
+          <span className="font-medium"> My uploads</span> page.
+        </p>
+        <div className="bg-white shadow-md border border-gray-200 rounded-xl p-4 sm:p-6">
+          <UploadForm />
+        </div>
+      </section>
     </main>
   );
 }

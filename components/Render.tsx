@@ -188,9 +188,9 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
       {/* Header */}
       <div className="max-w-5xl mx-auto px-4 pt-6 flex flex-wrap justify-between gap-3 items-start">
         <div>
-          <button onClick={() => history.back()} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-2">
+          {/* <button onClick={() => history.back()} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-2">
             ← Back
-          </button>
+          </button> */}
           <div className="mt-2">
             <h1 className="text-2xl font-semibold">{book.title}</h1>
             <p className="text-sm text-gray-500">{book.author}</p>

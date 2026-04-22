@@ -11,10 +11,14 @@ export async function GET() {
         title: uploaded_books.title,
         description: uploaded_books.description,
         genre: uploaded_books.genre,
+        language: uploaded_books.language,
+        fileUrl: uploaded_books.fileUrl,
+        createdAt: uploaded_books.createdAt,
+        uploaderEmail: users.email,
       })
       .from(uploaded_books)
       .innerJoin(users, eq(users.id, uploaded_books.uploaderId))
-      .where(eq(uploaded_books.status, "pending"));
+      .where(eq(uploaded_books.status, "PENDING"));
 
     return NextResponse.json({ books });
   } catch (error) {
