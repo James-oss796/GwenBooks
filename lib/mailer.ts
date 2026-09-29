@@ -24,7 +24,7 @@ export async function sendEmail({
     });
 
     const info = await transporter.sendMail({
-      from: `"Library App" <${config.env.email.emailUser}>`,
+      from: `"GwenBooks" <${config.env.email.emailUser}>`,
       to,
       subject,
       text,

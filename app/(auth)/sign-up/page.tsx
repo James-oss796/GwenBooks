@@ -24,28 +24,6 @@ const Page = () => (
 
     />
     </div>
-
-       {/* Divider */}
-          <div className="flex items-center w-full max-w-sm">
-            <div className="flex-grow border-t border-gray-300"></div>
-            <span className="px-3 text-gray-500 text-sm">OR</span>
-            <div className="flex-grow border-t border-gray-300"></div>
-          </div>
-    
-          {/* Google Sign-In Button */}
-          <button
-            onClick={() => signIn("google")}
-            className="flex items-center justify-center w-full max-w-sm p-3 border rounded-md hover:bg-black-300 transition"
-          >
-            <Image
-              src="https://developers.google.com/identity/images/g-logo.png"
-              alt="Google"
-              width={24}
-              height={24}
-              className="mr-2"
-            />
-            <span>Sign in with Google</span>
-          </button>
           
     </div>
 );

@@ -35,7 +35,7 @@ useEffect(() => {
       const res = await fetch(`/api/books/${book.id}`);
       if (!res.ok) return;
       const data = await res.json();
-      if (data.links?.length) setLinks(data.links);
+      if (data.downloadLinks?.length) setLinks(data.downloadLinks);
     } catch (err) {
       console.warn("Server-side link fetch failed", err);
     }

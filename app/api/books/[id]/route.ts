@@ -74,10 +74,13 @@ export async function GET(
       downloadLinks,
       fallbackLinks,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Book not found" },
-      { status: 404 }
-    );
-  }
+  } catch (error) {
+  console.error("[GET /api/books/[id]]", error);
+
+  return NextResponse.json(
+    { error: "Failed to retrieve book" },
+    { status: 502 }
+  );
 }
+  }
+

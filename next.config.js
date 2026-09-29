@@ -26,6 +26,10 @@ const nextConfig = {
         protocol: "https",
         hostname: "www.gutenberg.org",
       },
+      {
+        protocol: "https",
+        hostname: "assets.openstax.org",
+      },
        {
         protocol: "https",
         hostname: "developers.google.com", // ✅ add this line
@@ -38,7 +42,6 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-
 };
 
 module.exports = nextConfig;

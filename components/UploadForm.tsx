@@ -106,7 +106,7 @@ export default function UploadForm() {
                 <Progress value={progress} max={100} className="h-2 w-full rounded" />
             )}
 
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting} loading={submitting}>
                 {submitting ? `Uploading… ${progress}%` : "Submit for approval"}
             </Button>
         </form>

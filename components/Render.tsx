@@ -16,6 +16,7 @@ import {
   FiBookOpen,
   FiMenu,
 } from "react-icons/fi";
+import { Download, Loader2 } from "lucide-react";
 
 type BookMeta = {
   id: string;
@@ -40,6 +41,8 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [savingFavorite, setSavingFavorite] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const [currentChapter, setCurrentChapter] = useState<number>(0);
 
@@ -149,6 +152,7 @@ useEffect(() => {
   const decreaseFont = () => setFontSize((s) => Math.max(12, s - 1));
 
   const toggleFavorite = async () => {
+    setSavingFavorite(true);
     setIsFavorite((v) => !v);
     try {
       await fetch(`/api/favorites/${!isFavorite ? "add" : "remove"}`, {
@@ -163,6 +167,8 @@ useEffect(() => {
       });
     } catch (e) {
       console.warn("favorite toggle failed", e);
+    } finally {
+      setSavingFavorite(false);
     }
   };
 
@@ -198,6 +204,46 @@ useEffect(() => {
       setSummary("Failed to summarize. Try again later.");
     } finally {
       setLoadingSummary(false);
+    }
+  };
+
+  const downloadAsPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF();
+      let y = 20;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(18);
+      pdf.text(pdf.splitTextToSize(book.title, 180), 15, y);
+      y += 12;
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(11);
+      if (book.author) {
+        pdf.text(pdf.splitTextToSize(`by ${book.author}`, 180), 15, y);
+        y += 10;
+      }
+
+      for (const page of pages) {
+        const lines = pdf.splitTextToSize(page, 180);
+        for (const line of lines) {
+          if (y > 280) {
+            pdf.addPage();
+            y = 18;
+          }
+          pdf.text(line, 15, y);
+          y += 5;
+        }
+        y += 5;
+      }
+
+      const safeTitle = book.title.replace(/[\\/:*?"<>|]/g, "-").trim() || "book";
+      pdf.save(`${safeTitle}.pdf`);
+    } catch (error) {
+      console.error("PDF export failed:", error);
+      alert("Could not create the PDF. Please try again.");
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -245,6 +291,19 @@ useEffect(() => {
           <div className="mt-2">
             <h1 className="text-2xl font-semibold">{book.title}</h1>
             <p className="text-sm text-gray-500">{book.author}</p>
+            <button
+              type="button"
+              onClick={downloadAsPdf}
+              disabled={downloadingPdf}
+              className="mt-3 inline-flex items-center gap-2 rounded-md bg-amber-400 px-4 py-2 text-sm font-semibold text-gray-950 transition hover:bg-amber-300 disabled:cursor-wait disabled:opacity-70"
+            >
+              {downloadingPdf ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Download className="h-4 w-4" aria-hidden="true" />
+              )}
+              {downloadingPdf ? "Preparing PDF..." : "Download this book as PDF"}
+            </button>
           </div>
         </div>
 
@@ -262,11 +321,11 @@ useEffect(() => {
           <button title="Share" onClick={handleShare} className="p-2 rounded bg-black/10 hover:bg-black/20">
             <FiShare2 />
           </button>
-          <button title="Favorite" onClick={toggleFavorite} className={`p-2 rounded ${isFavorite ? "bg-amber-400 text-black" : "bg-black/10 hover:bg-black/20"}`}>
-            <FiHeart />
+          <button title="Favorite" onClick={toggleFavorite} disabled={savingFavorite} className={`p-2 rounded disabled:opacity-60 ${isFavorite ? "bg-amber-400 text-black" : "bg-black/10 hover:bg-black/20"}`}>
+            {savingFavorite ? <Loader2 className="h-4 w-4 animate-spin" /> : <FiHeart />}
           </button>
-          <button title="Summarize current page" onClick={openSummary} className="p-2 rounded bg-black/10 hover:bg-black/20">
-            AI
+          <button title="Summarize current page" onClick={openSummary} disabled={loadingSummary} className="p-2 rounded bg-black/10 hover:bg-black/20 disabled:opacity-60">
+            {loadingSummary ? <Loader2 className="h-4 w-4 animate-spin" /> : "AI"}
           </button>
         </div>
       </div>
@@ -323,12 +382,13 @@ useEffect(() => {
     {showMobileMenu && (
       <>
         {[
-          { onClick: openSummary, icon: <FiBookOpen />, title: "Summarize current page" },
+          { onClick: openSummary, icon: loadingSummary ? <Loader2 className="animate-spin" /> : <FiBookOpen />, title: "Summarize current page", disabled: loadingSummary },
           { onClick: handleShare, icon: <FiShare2 />, title: "Share" },
           {
             onClick: toggleFavorite,
-            icon: <FiHeart />,
+            icon: savingFavorite ? <Loader2 className="animate-spin" /> : <FiHeart />,
             title: "Favorite",
+            disabled: savingFavorite,
             className: isFavorite ? "bg-amber-400 text-black" : "bg-black/70 text-white",
           },
           { onClick: decreaseFont, icon: <FiMinus />, title: "Decrease font" },
@@ -346,6 +406,7 @@ useEffect(() => {
             exit={{ opacity: 0, y: 12, scale: 0.85 }}
             transition={{ delay: i * 0.04, type: "spring", stiffness: 300, damping: 22 }}
             onClick={btn.onClick}
+            disabled={btn.disabled}
             title={btn.title}
             className={`p-3 rounded-full shadow-lg ${btn.className ?? "bg-black/70 text-white"}`}
           >

@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import BookCover from "./BookCover";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { Button } from "./ui/button";
 import { FastAverageColor } from "fast-average-color";
 import { useRouter } from "next/navigation";
+import { Download } from "lucide-react";
 
 interface BookCardProps {
 id: number | string;
@@ -16,8 +17,10 @@ genre?: string;
 coverUrl?: string | null;
 coverColor?: string;
 isLoanedBook?: boolean;
-userId?: string;
-source: "gutenberg" | "openlibrary" | "internetarchive" | "google";
+  source?: "gutenberg" | "openlibrary" | "internetarchive" | "google" | "googlebooks" | "openstax";
+  downloadUrl?: string;
+  downloadId?: string;
+  priority?: boolean;
 }
 
 const BookCard = ({
@@ -27,10 +30,12 @@ author,
 source,
 genre,
 coverUrl,
+  downloadUrl,
+  downloadId,
+  priority = false,
 coverColor,
 isLoanedBook = false,
 }: BookCardProps) => {
-const imgRef = useRef<HTMLImageElement>(null);
 const [avgColor, setAvgColor] = useState<string>(coverColor || "#fff");
 const [isLoading, setIsLoading] = useState(false);
 const router = useRouter();
@@ -41,31 +46,19 @@ coverUrl && coverUrl.trim() !== ""
 : `https://covers.openlibrary.org/b/id/${id}-L.jpg`;
 
 
-useEffect(() => {
-const img = imgRef.current;
-if (!img) return;
-
+const handleCoverLoad = async (image: HTMLImageElement) => {
 const fac = new FastAverageColor();
-const handleLoad = async () => {
 try {
-const color = await fac.getColorAsync(img);
+const color = await fac.getColorAsync(image);
 setAvgColor(color.hex);
 } catch (err) {
-console.warn("⚠️ Failed to extract average color:", err);
+console.warn("Failed to extract cover color:", err);
 }
 };
 
-img.addEventListener("load", handleLoad);
-return () => img.removeEventListener("load", handleLoad);
-
-
-}, [fallbackCover]);
-
 const handleClick = (e: React.MouseEvent) => {
 e.preventDefault();
-setIsLoading(false);
-
-setTimeout(() => {
+  setIsLoading(true);
   const safeSource = (source || "gutenberg").toLowerCase();
 
   // ✅ Proper cleanup for IDs
@@ -81,17 +74,24 @@ setTimeout(() => {
   const safeId = encodeURIComponent(`${safeSource}:${cleanedId}`);
 
   router.push(`/read/${safeId}`);
-}, 400);
-
-
 };
 
 return (
 <li className={cn(isLoanedBook ? "xs:w-52 w-full" : "w-full relative")}>
-<div onClick={handleClick} className="group hover:scale-[1.03] transition-transform duration-200 cursor-pointer" >
-<img ref={imgRef} src={fallbackCover} alt={title} className="hidden" />
-
-    <BookCover coverColor={avgColor} coverUrl={fallbackCover} />
+<div className="relative">
+  <button
+    type="button"
+    onClick={handleClick}
+        disabled={isLoading}
+    className="group relative block w-full text-left transition-transform duration-200 hover:scale-[1.03]"
+    aria-label={`Open ${title}`}
+  >
+    <BookCover
+      coverColor={avgColor}
+      coverUrl={fallbackCover}
+      onImageLoad={handleCoverLoad}
+      priority={priority}
+    />
 
     <div className={cn("mt-4", !isLoanedBook && "xs:max-w-40 max-w-28")}>
       <p className="book-title line-clamp-2">{title}</p>
@@ -109,7 +109,19 @@ return (
         <div className="h-6 w-6 border-4 border-t-transparent border-white rounded-full animate-spin" />
       </div>
     )}
-  </div>
+  </button>
+  {(downloadUrl || downloadId) && (
+    <a
+      href={downloadUrl
+        ? `/api/books/download?url=${encodeURIComponent(downloadUrl)}`
+        : `/api/books/download?archiveId=${encodeURIComponent(downloadId!)}`}
+      target="_blank"
+      className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-green-700 hover:text-green-800 dark:text-green-300 dark:hover:text-green-200"
+    >
+      <Download className="h-4 w-4" aria-hidden="true" /> Download PDF
+    </a>
+  )}
+</div>
 
   {isLoanedBook && (
     <div className="mt-3 w-full">
