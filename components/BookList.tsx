@@ -16,8 +16,8 @@ export default function BookList ({ title, books, userId, containerClassName }: 
      <section className={`space-y-4 ${containerClassName || ''}`}>
       {title && <h2 className="text-xl font-semibold text-light-100">{title}</h2>}
       <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-        {books.map((book) => (
-          <BookCard key={book.id} {...book} />
+        {books.map((book, index) => (
+          <BookCard key={book.id} {...book} priority={index < 4} />
         ))}
       </ul>
     </section>

@@ -13,11 +13,21 @@ const variantStyles: Record<BookCoverVariant, string> = {
   wide: "book-cover_wide",
 };
 
+const imageSizes: Record<BookCoverVariant, string> = {
+  extraSmall: "29px",
+  small: "55px",
+  medium: "144px",
+  regular: "(max-width: 480px) 114px, 174px",
+  wide: "(max-width: 480px) 256px, 296px",
+};
+
 interface Props {
   className?: string;
   variant?: BookCoverVariant;
   coverColor: string;
   coverUrl: string;
+  onImageLoad?: (image: HTMLImageElement) => void;
+  priority?: boolean;
 }
 
 const BookCover = ({
@@ -25,6 +35,8 @@ const BookCover = ({
   variant = "regular",
   coverColor = "#012b48",
   coverUrl = "https://placehold.co/400x600.png",
+  onImageLoad,
+  priority = false,
 }: Props) => {
   return (
     <div
@@ -34,7 +46,7 @@ const BookCover = ({
         className,
       )}
       // ✅ background color from fast-average-color
-      style={{ backgroundColor: coverColor }}
+      style={{ position: "relative", backgroundColor: coverColor }}
     >
       {/* SVG overlay for extra depth */}
       <BookCoverSvg coverColor={coverColor} />
@@ -42,13 +54,16 @@ const BookCover = ({
       {/* Book Image Layer */}
       <div
         className="absolute z-10"
-        style={{ left: "12%", width: "87.5%", height: "88%" }}
+        style={{ position: "absolute", top: 0, bottom: 0, left: "12%", width: "87.5%" }}
       >
         <Image
           src={coverUrl}
           alt="Book Cover"
           fill
+          sizes={imageSizes[variant]}
+          priority={priority}
           crossOrigin="anonymous"
+          onLoad={(event) => onImageLoad?.(event.currentTarget)}
           className="rounded-sm object-fill"
         />
       </div>

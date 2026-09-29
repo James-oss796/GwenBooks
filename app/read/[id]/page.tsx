@@ -58,11 +58,38 @@ downloadLinks: [],
     openlibrary: "Open Library",
     internetarchive: "Internet Archive",
     gutenberg: "Project Gutenberg",
+    openstax: "OpenStax",
   };
+
+  if (book.source === "openstax" && book.readUrl) {
+    return (
+      <main className="min-h-screen bg-[#f7f5ef] text-gray-900">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 bg-white px-5 py-4 sm:px-8">
+          <div>
+            <h1 className="text-xl font-semibold">{book.title}</h1>
+            <p className="text-sm text-gray-500">OpenStax free textbook</p>
+          </div>
+          {book.downloadUrl ? (
+            <Link
+              href={`/api/books/download?url=${encodeURIComponent(book.downloadUrl)}`}
+              className="inline-flex items-center gap-2 rounded-md bg-green-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-800"
+            >
+              Download PDF
+            </Link>
+          ) : null}
+        </header>
+        <iframe
+          src={book.readUrl}
+          title={`${book.title} online textbook`}
+          className="h-[calc(100vh-78px)] min-h-[70vh] w-full border-0 bg-white"
+        />
+      </main>
+    );
+  }
 
   // ❌ If book not readable (non-Gutenberg)
   if (!book.isFullyReadable || book.source !== "gutenberg") {
-    const pdfUrl = await fetchFallbackPDF(book.id, book.source);
+    const pdfUrl = book.downloadUrl || await fetchFallbackPDF(book.id, book.source);
 
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 text-gray-900 p-6">
@@ -91,7 +118,7 @@ downloadLinks: [],
 
           {pdfUrl ? (
             <Link
-              href={pdfUrl}
+              href={`/api/books/download?url=${encodeURIComponent(pdfUrl)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="block w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3.5 rounded-lg transition-all shadow-md hover:shadow-lg mb-3 text-center"

@@ -155,6 +155,9 @@ function FloatingCard({
         }}
         className="relative w-[160px] h-[220px] rounded-xl overflow-hidden ring-1 ring-white/20"
         style={{
+          position: "relative",
+          width: 160,
+          height: 220,
           boxShadow: `0 ${20 + index * 4}px ${40 + index * 8}px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.07)`,
         }}
       >
@@ -503,13 +506,18 @@ export default function LandingPage() {
                     : "opacity-60 hover:opacity-100"
                 }`}
               >
-                <div className="aspect-[2/3] relative rounded-lg overflow-hidden bg-white/5 ring-1 ring-white/10 group-hover:ring-white/30 transition-all">
-                  <Image
+                <div
+                  className="aspect-[2/3] relative rounded-lg overflow-hidden bg-white/5 ring-1 ring-white/10 group-hover:ring-white/30 transition-all"
+                  style={{ position: "relative", width: 140, height: 210 }}
+                >
+                  <img
                     src={(book as Book).coverUrl || "/placeholder-book.jpg"}
                     alt={(book as Book).title}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    sizes="140px"
+                    width={140}
+                    height={210}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
                 <p className="text-xs mt-2 truncate text-white/50 group-hover:text-white/80 transition-colors">

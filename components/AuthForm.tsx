@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DefaultValues, SubmitHandler, useForm, UseFormReturn, FieldValues, Path } from "react-hook-form"
-import React from 'react'
+import React, { useState } from 'react'
 import { ZodType } from "zod"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +18,8 @@ import Link from 'next/link'
 import { FIELD_NAMES, FIELD_TYPES } from "@/constants"
 import { toast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react";
+import Image from "next/image";
 
 interface Props<T extends FieldValues>{
     schema: ZodType<T>;
@@ -25,13 +27,14 @@ interface Props<T extends FieldValues>{
     onSubmit: (data: T) => Promise< {success: boolean, error?: string}>;
     type: "SIGN_IN"| "SIGN_UP";
 }
-const AuthForm =<T extends FieldValues>({
+function AuthForm<T extends FieldValues>({
     type,
     schema,
     defaultValues,
     onSubmit,
-}: Props<T>) => {
+}: Props<T>) {
   const router = useRouter();
+  const [googleLoading, setGoogleLoading] = useState(false);
     const isSignIn = type === 'SIGN_IN';
     const form: UseFormReturn<T> = useForm({
         resolver: zodResolver(schema),
@@ -65,6 +68,38 @@ const AuthForm =<T extends FieldValues>({
         <p className="text-light-100">
             {isSignIn ? 'Access the vast collection of resources, and stay updated.' : 'Please complete all fields and upload a valid university ID to gain access to the library'}
         </p>
+
+        {/* Google Sign-In Button */}
+      <Button
+        onClick={async () => {
+          setGoogleLoading(true);
+          try {
+            await signIn("google");
+          } finally {
+            setGoogleLoading(false);
+          }
+        }}
+        loading={googleLoading}
+        disabled={googleLoading}
+        className="flex items-center justify-center w-full max-w-sm p-3 border rounded-md hover:bg-black-300 transition"
+      >
+        <Image
+          src="https://developers.google.com/identity/images/g-logo.png"
+          alt="Google"
+          width={24}
+          height={24}
+          className="mr-2"
+        />
+        <span>Sign in with Google</span>
+      </Button>
+
+      {/* Divider */}
+      <div className="flex items-center w-full max-w-sm">
+        <div className="flex-grow border-t border-gray-300"></div>
+        <span className="px-3 text-gray-500 text-sm">OR</span>
+        <div className="flex-grow border-t border-gray-300"></div>
+      </div>
+      
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)}
        className="space-y-4 w-full"
@@ -93,7 +128,14 @@ const AuthForm =<T extends FieldValues>({
         />
         ))}
         
-        <Button type="submit" className="form-btn">{isSignIn ? 'Sign In' : 'Sign Up'}</Button>
+        <Button
+          type="submit"
+          className="form-btn"
+          loading={form.formState.isSubmitting}
+          disabled={form.formState.isSubmitting}
+        >
+          {form.formState.isSubmitting ? "Please wait..." : isSignIn ? "Sign In" : "Sign Up"}
+        </Button>
       </form>
     </Form>
     <p className="text-center text-base font-medium">
