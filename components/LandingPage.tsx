@@ -316,34 +316,97 @@ export default function LandingPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Fetch books
-  const loadBooks = useCallback(async () => {
-    setBooksStatus("loading");
-    for (const query of ["Pride and Prejudice", "fiction", "Alice"]) {
-      try {
-        const res = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`);
-        if (!res.ok) continue;
-        const data = await res.json();
-        const books: Book[] = (data.results || [])
-          .filter((book: Book) => book.id && book.title && book.source)
-          .slice(0, 18)
-          .map((book: Book) => ({
-            ...book,
-            readUrl: `/read/${encodeURIComponent(book.id)}`,
-          }));
-        if (!books.length) continue;
-        setDemoBooks(books);
-        setActiveDemoBook(books[0]);
-        setBooksStatus("ready");
-        return;
-      } catch {
-        continue;
+ // Fetch books
+const loadBooks = useCallback(async () => {
+  setBooksStatus("loading");
+
+  const queries = [
+    "fiction",
+    "adventure",
+    "mystery",
+  ];
+
+  try {
+    const responses = await Promise.allSettled(
+      queries.map(async (query) => {
+        const res = await fetch(
+          `/api/books/search?q=${encodeURIComponent(query)}`
+        );
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch "${query}"`);
+        }
+
+        return res.json();
+      })
+    );
+
+    const allBooks: Book[] = [];
+
+    for (const result of responses) {
+      if (result.status !== "fulfilled") continue;
+
+      const results = result.value?.results;
+
+      if (!Array.isArray(results)) continue;
+
+      for (const book of results) {
+        if (!book?.id || !book?.title || !book?.source) {
+          continue;
+        }
+
+        // Only keep books that actually have a cover
+        const coverUrl =
+          book.coverUrl ||
+          book.cover ||
+          book.coverImage ||
+          book.formats?.["image/jpeg"] ||
+          book.formats?.["image/jpg"];
+
+        if (!coverUrl) {
+          continue;
+        }
+
+        allBooks.push({
+          ...book,
+          coverUrl,
+          readUrl: `/read/${encodeURIComponent(book.id)}`,
+        });
       }
     }
+
+    // Remove duplicate books
+    const uniqueBooks = Array.from(
+      new Map(
+        allBooks.map((book) => [String(book.id), book])
+      ).values()
+    );
+
+    // Shuffle so the same books aren't always shown first
+    const shuffledBooks = [...uniqueBooks].sort(
+      () => Math.random() - 0.5
+    );
+
+    const finalBooks = shuffledBooks.slice(0, 60);
+
+    if (!finalBooks.length) {
+      setDemoBooks([]);
+      setActiveDemoBook(null);
+      setBooksStatus("error");
+      return;
+    }
+
+    setDemoBooks(finalBooks);
+    setActiveDemoBook(finalBooks[0]);
+    setBooksStatus("ready");
+  } catch (error) {
+    console.error("Failed to load books:", error);
+
     setDemoBooks([]);
     setActiveDemoBook(null);
     setBooksStatus("error");
-  }, []);
+  }
+}, []);
 
   useEffect(() => { loadBooks(); }, [loadBooks]);
 
