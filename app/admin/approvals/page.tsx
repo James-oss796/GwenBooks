@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
+import { ButtonSpinner } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ type PendingBook = {
 export default function ApprovalsPage() {
   const [pendingBooks, setPendingBooks] = useState<PendingBook[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actingOn, setActingOn] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -37,22 +39,25 @@ export default function ApprovalsPage() {
 
   // ✅ Button handler
   async function handleAction(id: number, action: "approve" | "reject") {
-    const res = await fetch(`/api/books/${action}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
+    setActingOn({ id, action });
+    try {
+      const res = await fetch(`/api/books/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
 
-    const data = await res.json();
-    if (res.ok) {
-      toast.success(
-        action === "approve"
-          ? "✅ Book approved successfully!"
-          : "❌ Book rejected successfully!"
-      );
-      await refresh();
-    } else {
-      toast.error(data.error || "Something went wrong!");
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(action === "approve" ? "✅ Book approved successfully!" : "❌ Book rejected successfully!");
+        await refresh();
+      } else {
+        toast.error(data.error || "Something went wrong!");
+      }
+    } catch {
+      toast.error("Action failed. Check your connection and try again.");
+    } finally {
+      setActingOn(null);
     }
   }
 
@@ -115,16 +120,22 @@ export default function ApprovalsPage() {
               <div className="flex gap-3 mt-5">
                 <button
                   onClick={() => handleAction(book.id, "approve")}
-                  className="bg-green-600 hover:bg-green-700 text-white w-1/2 py-2 rounded-lg text-sm font-semibold"
+                  disabled={actingOn?.id === book.id}
+                  aria-busy={actingOn?.id === book.id && actingOn.action === "approve"}
+                  className="relative inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white w-1/2 py-2 rounded-lg text-sm font-semibold disabled:opacity-70"
                 >
-                  ✅ Approve
+                  {actingOn?.id === book.id && actingOn.action === "approve" && <span className="absolute inset-0 flex items-center justify-center"><ButtonSpinner /></span>}
+                  <span className={actingOn?.id === book.id && actingOn.action === "approve" ? "opacity-0" : ""}>✅ Approve</span>
                 </button>
 
                 <button
                   onClick={() => handleAction(book.id, "reject")}
-                  className="bg-red-600 hover:bg-red-700 text-white w-1/2 py-2 rounded-lg text-sm font-semibold"
+                  disabled={actingOn?.id === book.id}
+                  aria-busy={actingOn?.id === book.id && actingOn.action === "reject"}
+                  className="relative inline-flex items-center justify-center bg-red-600 hover:bg-red-700 text-white w-1/2 py-2 rounded-lg text-sm font-semibold disabled:opacity-70"
                 >
-                  ❌ Reject
+                  {actingOn?.id === book.id && actingOn.action === "reject" && <span className="absolute inset-0 flex items-center justify-center"><ButtonSpinner /></span>}
+                  <span className={actingOn?.id === book.id && actingOn.action === "reject" ? "opacity-0" : ""}>❌ Reject</span>
                 </button>
               </div>
             </div>

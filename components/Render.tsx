@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiChevronLeft,
@@ -16,11 +17,12 @@ import {
   FiBookOpen,
   FiMenu,
 } from "react-icons/fi";
-import { Download, Loader2 } from "lucide-react";
+import { Download } from "lucide-react";
 
 type BookMeta = {
   id: string;
   title: string;
+  source?: "gutenberg" | "internetarchive" | "wikisource";
   author?: string;
   coverUrl?: string | null;
 };
@@ -42,7 +44,10 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
   const [summary, setSummary] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [savingFavorite, setSavingFavorite] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [coverFailed, setCoverFailed] = useState(false);
+  const [progressLoaded, setProgressLoaded] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const [currentChapter, setCurrentChapter] = useState<number>(0);
 
@@ -65,20 +70,29 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
     const t = localStorage.getItem(localKeyTheme);
     const fav = localStorage.getItem(localKeyFav);
 
-    if (p) setPageIndex(Number(p));
-    if (f) setFontSize(Number(f));
+    if (p) {
+      const savedPage = Number(p);
+      if (Number.isFinite(savedPage)) setPageIndex(Math.max(1, Math.min(savedPage + 1, pages.length)));
+    }
+    if (f) {
+      const savedFontSize = Number(f);
+      if (Number.isFinite(savedFontSize)) setFontSize(Math.max(12, Math.min(28, savedFontSize)));
+    }
     if (t === "dark") setTheme("dark");
     if (fav === "true") setIsFavorite(true);
+    setProgressLoaded(true);
   }, [book.id]);
 
   useEffect(() => {
-    localStorage.setItem(localKeyProgress, String(pageIndex));
+    if (!progressLoaded) return;
+    const savedPage = Math.max(0, pageIndex - 1);
+    localStorage.setItem(localKeyProgress, String(savedPage));
     fetch("/api/progress/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookId: book.id, pageIndex }),
+      body: JSON.stringify({ bookId: book.id, pageIndex: savedPage }),
     }).catch(() => {});
-  }, [pageIndex, book.id]);
+  }, [pageIndex, book.id, progressLoaded]);
 
   useEffect(() => localStorage.setItem(localKeyFont, String(fontSize)), [fontSize]);
 
@@ -89,67 +103,62 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
 
   useEffect(() => localStorage.setItem(localKeyFav, String(isFavorite)), [isFavorite]);
 
-useEffect(() => {
-  const resetTimer = () => {
-    setShowMobileToggle(true);
-    if (mobileToggleInactivityRef.current) clearTimeout(mobileToggleInactivityRef.current);
-    mobileToggleInactivityRef.current = setTimeout(() => {
-      if (!showMobileMenu) setShowMobileToggle(false);
-    }, 2000);
-  };
+  useEffect(() => {
+    const resetTimer = () => {
+      setShowMobileToggle(true);
+      if (mobileToggleInactivityRef.current) clearTimeout(mobileToggleInactivityRef.current);
+      mobileToggleInactivityRef.current = setTimeout(() => {
+        if (!showMobileMenu) setShowMobileToggle(false);
+      }, 2000);
+    };
 
-  resetTimer(); // hide after 2s on mount
+    resetTimer();
+    const ref = contentRef.current;
+    ref?.addEventListener("scroll", resetTimer);
+    window.addEventListener("mousemove", resetTimer);
+    window.addEventListener("touchstart", resetTimer);
 
-  const ref = contentRef.current;
-  ref?.addEventListener("scroll", resetTimer);
-  window.addEventListener("mousemove", resetTimer);
-  window.addEventListener("touchstart", resetTimer);
+    return () => {
+      if (mobileToggleInactivityRef.current) clearTimeout(mobileToggleInactivityRef.current);
+      ref?.removeEventListener("scroll", resetTimer);
+      window.removeEventListener("mousemove", resetTimer);
+      window.removeEventListener("touchstart", resetTimer);
+    };
+  }, [showMobileMenu]);
 
-  return () => {
-    if (mobileToggleInactivityRef.current) clearTimeout(mobileToggleInactivityRef.current);
-    ref?.removeEventListener("scroll", resetTimer);
-    window.removeEventListener("mousemove", resetTimer);
-    window.removeEventListener("touchstart", resetTimer);
-  };
-}, [showMobileMenu]);
-
-useEffect(() => {
-  if (!showMobileMenu) return;
-
-  const handleOutsideClick = (e: MouseEvent) => {
-    if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) {
-      setShowMobileMenu(false);
-    }
-  };
-
-  const handleScroll = () => setShowMobileMenu(false);
-
-  document.addEventListener("mousedown", handleOutsideClick);
-  contentRef.current?.addEventListener("scroll", handleScroll);
-
-  return () => {
-    document.removeEventListener("mousedown", handleOutsideClick);
-    contentRef.current?.removeEventListener("scroll", handleScroll);
-  };
-}, [showMobileMenu]);
+  useEffect(() => {
+    if (!showMobileMenu) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setShowMobileMenu(false);
+      }
+    };
+    const handleScroll = () => setShowMobileMenu(false);
+    document.addEventListener("mousedown", handleOutsideClick);
+    contentRef.current?.addEventListener("scroll", handleScroll);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      contentRef.current?.removeEventListener("scroll", handleScroll);
+    };
+  }, [showMobileMenu]);
 
   const progressPct = useMemo(
-    () => Math.round(((pageIndex + 1) / pages.length) * 100),
+    () => Math.round((pageIndex / Math.max(1, pages.length)) * 100),
     [pageIndex, pages.length]
   );
 
   const handleNext = () => {
-    setPageIndex((p) => Math.min(p + 1, pages.length - 1));
+    setPageIndex((current) => Math.min(current + 1, pages.length));
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handlePrev = () => {
-    setPageIndex((p) => Math.max(p - 1, 0));
+    setPageIndex((current) => Math.max(current - 1, 0));
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const increaseFont = () => setFontSize((s) => Math.min(28, s + 1));
-  const decreaseFont = () => setFontSize((s) => Math.max(12, s - 1));
+  const increaseFont = () => setFontSize((size) => Math.min(28, size + 1));
+  const decreaseFont = () => setFontSize((size) => Math.max(12, size - 1));
 
   const toggleFavorite = async () => {
     setSavingFavorite(true);
@@ -173,18 +182,25 @@ useEffect(() => {
   };
 
   const handleShare = async () => {
-    const shareLink = `${window.location.origin}/read/${book.id}`;
-    if (navigator.share) {
-      try {
+    setSharing(true);
+    const sourcePrefixedId = book.id.includes(":")
+      ? book.id
+      : `${book.source || "gutenberg"}:${book.id}`;
+    const shareLink = `${window.location.origin}/read/${encodeURIComponent(sourcePrefixedId)}`;
+    try {
+      if (navigator.share) {
         await navigator.share({
           title: book.title,
           text: `Reading ${book.title}`,
           url: shareLink,
         });
-      } catch {}
-    } else {
-      await navigator.clipboard.writeText(shareLink);
-      alert("Link copied to clipboard");
+      } else {
+        await navigator.clipboard.writeText(shareLink);
+        alert("Link copied to clipboard");
+      }
+    } catch {
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -196,7 +212,7 @@ useEffect(() => {
       const res = await fetch("/api/ai/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: pages[pageIndex] }),
+        body: JSON.stringify({ text: pages[Math.max(0, pageIndex - 1)] || "" }),
       });
       const data = await res.json();
       setSummary(data.summary ?? "No summary available.");
@@ -213,6 +229,45 @@ useEffect(() => {
       const { jsPDF } = await import("jspdf");
       const pdf = new jsPDF();
       let y = 20;
+      let coverAdded = false;
+
+      if (book.coverUrl) {
+        try {
+          const optimizedCover = `/_next/image?url=${encodeURIComponent(book.coverUrl)}&w=384&q=85`;
+          const coverImage = new window.Image();
+          coverImage.src = optimizedCover;
+          await coverImage.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = 480;
+          canvas.height = 720;
+          const context = canvas.getContext("2d");
+          context?.drawImage(coverImage, 0, 0, canvas.width, canvas.height);
+          if (context) {
+            const coverData = canvas.toDataURL("image/jpeg", 0.9);
+            pdf.addImage(coverData, "JPEG", 35, 24, 140, 210);
+            coverAdded = true;
+          }
+        } catch {
+          // Some catalog records have no usable cover image.
+        }
+      }
+
+      if (!coverAdded) {
+        pdf.setFillColor(37, 56, 140);
+        pdf.rect(0, 0, 210, 297, "F");
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(24);
+        pdf.text(pdf.splitTextToSize(book.title, 150), 105, 125, { align: "center" });
+        if (book.author) {
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(14);
+          pdf.text(pdf.splitTextToSize(book.author, 150), 105, 160, { align: "center" });
+        }
+      }
+
+      pdf.addPage();
+      y = 20;
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(18);
       pdf.text(pdf.splitTextToSize(book.title, 180), 15, y);
@@ -263,7 +318,7 @@ useEffect(() => {
     if (!chapters.length) return;
     let current = 0;
     for (let i = 0; i < chapters.length; i++) {
-      if (pageIndex >= chapters[i].page) current = i;
+      if (pageIndex - 1 >= chapters[i].page) current = i;
       else break;
     }
     setCurrentChapter(current);
@@ -283,7 +338,7 @@ useEffect(() => {
       </div>
 
       {/* Header */}
-      <div className="max-w-5xl mx-auto px-4 pt-6 flex flex-wrap justify-between gap-3 items-start">
+      <div className="max-w-6xl mx-auto px-4 pt-6 flex flex-wrap justify-between gap-3 items-start">
         <div>
           {/* <button onClick={() => history.back()} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-2">
             ← Back
@@ -291,19 +346,6 @@ useEffect(() => {
           <div className="mt-2">
             <h1 className="text-2xl font-semibold">{book.title}</h1>
             <p className="text-sm text-gray-500">{book.author}</p>
-            <button
-              type="button"
-              onClick={downloadAsPdf}
-              disabled={downloadingPdf}
-              className="mt-3 inline-flex items-center gap-2 rounded-md bg-amber-400 px-4 py-2 text-sm font-semibold text-gray-950 transition hover:bg-amber-300 disabled:cursor-wait disabled:opacity-70"
-            >
-              {downloadingPdf ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Download className="h-4 w-4" aria-hidden="true" />
-              )}
-              {downloadingPdf ? "Preparing PDF..." : "Download this book as PDF"}
-            </button>
           </div>
         </div>
 
@@ -318,14 +360,17 @@ useEffect(() => {
           <button title="Toggle theme" onClick={() => setTheme(t => (t === "dark" ? "light" : "dark"))} className="p-2 rounded bg-black/10 hover:bg-black/20">
             {theme === "dark" ? <FiSun /> : <FiMoon />}
           </button>
-          <button title="Share" onClick={handleShare} className="p-2 rounded bg-black/10 hover:bg-black/20">
+          <button title="Share" onClick={handleShare} disabled={sharing} className="p-2 rounded bg-black/10 hover:bg-black/20 disabled:opacity-60">
             <FiShare2 />
           </button>
+          <button title={downloadingPdf ? "Preparing PDF" : "Download book as PDF"} onClick={downloadAsPdf} disabled={downloadingPdf} className="p-2 rounded bg-black/10 hover:bg-black/20 disabled:opacity-60">
+            <Download />
+          </button>
           <button title="Favorite" onClick={toggleFavorite} disabled={savingFavorite} className={`p-2 rounded disabled:opacity-60 ${isFavorite ? "bg-amber-400 text-black" : "bg-black/10 hover:bg-black/20"}`}>
-            {savingFavorite ? <Loader2 className="h-4 w-4 animate-spin" /> : <FiHeart />}
+            <FiHeart />
           </button>
           <button title="Summarize current page" onClick={openSummary} disabled={loadingSummary} className="p-2 rounded bg-black/10 hover:bg-black/20 disabled:opacity-60">
-            {loadingSummary ? <Loader2 className="h-4 w-4 animate-spin" /> : "AI"}
+            AI
           </button>
         </div>
       </div>
@@ -336,11 +381,11 @@ useEffect(() => {
           <h2 className="text-xl font-semibold mb-3">Table of Contents</h2>
           <ul className="list-disc pl-5 space-y-2">
             {chapters.map((ch, i) => (
-              <li key={i}>
+              <li key={`${ch.title}-${ch.page}`}>
                 <button
                   className={`hover:underline ${i === currentChapter ? "font-bold text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300"}`}
                   onClick={() => {
-                    setPageIndex(ch.page);
+                    setPageIndex(ch.page + 1);
                     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                 >
@@ -353,11 +398,42 @@ useEffect(() => {
       )}
 
       {/* Reader */}
-      <div className="max-w-5xl mx-auto p-4 sm:p-6">
-        <div ref={contentRef} className="rounded-2xl p-6 sm:p-8 shadow-xl transition-all overflow-y-auto max-h-[80vh]">
-          <div className={`whitespace-pre-wrap leading-relaxed text-[${fontSize}px]`}>
-  {pages[pageIndex]}
-        </div>
+      <div className="mx-auto w-full max-w-6xl px-2 py-4 sm:px-6 sm:py-6">
+        <div ref={contentRef} className="w-full rounded-2xl px-4 py-5 sm:px-8 sm:py-8 shadow-xl transition-all overflow-y-auto max-h-[80vh]">
+          {pageIndex === 0 ? (
+            <section className="mx-auto grid min-h-[58vh] w-full max-w-4xl grid-cols-1 items-center gap-8 py-6 sm:grid-cols-[minmax(180px,260px)_1fr] sm:gap-12">
+              <div className="relative mx-auto aspect-[2/3] w-[min(58vw,240px)] max-h-[48vh] overflow-hidden rounded-md bg-black/10 shadow-xl ring-1 ring-black/10">
+                {book.coverUrl && !coverFailed ? (
+                  <Image
+                    src={book.coverUrl}
+                    alt={`${book.title} book cover`}
+                    fill
+                    sizes="(max-width: 640px) 58vw, 260px"
+                    priority
+                    className="object-contain"
+                    onError={() => setCoverFailed(true)}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-[#25388C] to-[#17244f] p-5 text-center text-white">
+                    <span className="line-clamp-5 text-lg font-semibold">{book.title}</span>
+                  </div>
+                )}
+              </div>
+              <div className="mx-auto max-w-xl text-center sm:text-left">
+                <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-amber-700">Book cover</p>
+                <h2 className="text-3xl font-semibold leading-tight sm:text-4xl">{book.title}</h2>
+                {book.author && <p className="mt-3 text-base text-gray-500">{book.author}</p>}
+                <p className="mt-6 text-sm text-gray-500">{pages.length} reading pages</p>
+              </div>
+            </section>
+          ) : (
+            <div
+              className="mx-auto w-full max-w-5xl whitespace-pre-wrap break-words text-left leading-relaxed"
+              style={{ fontSize: `${fontSize}px` }}
+            >
+              {pages[pageIndex - 1]}
+            </div>
+          )}
 
         </div>
       </div>
@@ -369,7 +445,7 @@ useEffect(() => {
             <button onClick={handlePrev} className="px-4 py-2 bg-black/40 rounded hover:bg-black/60" disabled={pageIndex === 0}>
               <FiChevronLeft size={18} /> Prev
             </button>
-            <button onClick={handleNext} className="px-4 py-2 bg-black/40 rounded hover:bg-black/60" disabled={pageIndex === pages.length - 1}>
+            <button onClick={handleNext} className="px-4 py-2 bg-black/40 rounded hover:bg-black/60" disabled={pageIndex === pages.length}>
               Next <FiChevronRight size={18} />
             </button>
           </motion.div>
@@ -382,11 +458,12 @@ useEffect(() => {
     {showMobileMenu && (
       <>
         {[
-          { onClick: openSummary, icon: loadingSummary ? <Loader2 className="animate-spin" /> : <FiBookOpen />, title: "Summarize current page", disabled: loadingSummary },
-          { onClick: handleShare, icon: <FiShare2 />, title: "Share" },
+          { onClick: openSummary, icon: <FiBookOpen />, title: "Summarize current page", disabled: loadingSummary },
+          { onClick: handleShare, icon: <FiShare2 />, title: "Share", disabled: sharing },
+          { onClick: downloadAsPdf, icon: <Download />, title: "Download book as PDF", disabled: downloadingPdf },
           {
             onClick: toggleFavorite,
-            icon: savingFavorite ? <Loader2 className="animate-spin" /> : <FiHeart />,
+            icon: <FiHeart />,
             title: "Favorite",
             disabled: savingFavorite,
             className: isFavorite ? "bg-amber-400 text-black" : "bg-black/70 text-white",
@@ -408,7 +485,7 @@ useEffect(() => {
             onClick={btn.onClick}
             disabled={btn.disabled}
             title={btn.title}
-            className={`p-3 rounded-full shadow-lg ${btn.className ?? "bg-black/70 text-white"}`}
+            className={`relative p-3 rounded-full shadow-lg ${btn.className ?? "bg-black/70 text-white"}`}
           >
             {btn.icon}
           </motion.button>

@@ -15,13 +15,14 @@ import {
 } from "framer-motion";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type LoadStatus = "idle" | "loading" | "ready";
+type LoadStatus = "idle" | "loading" | "ready" | "error";
 
 // ─── Status dot config ────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
   idle:    { color: "bg-red-500",     glow: "shadow-red-500/80",     label: "Not loaded" },
   loading: { color: "bg-amber-400",   glow: "shadow-amber-400/80",   label: "Loading…"   },
   ready:   { color: "bg-emerald-400", glow: "shadow-emerald-400/80", label: "Live"       },
+  error:   { color: "bg-red-400",     glow: "shadow-red-400/80",     label: "Retry"      },
 };
 
 // ─── Cycling words ────────────────────────────────────────────────────────────
@@ -302,7 +303,8 @@ export default function LandingPage() {
   const featuresInView = useInView(featuresRef, { once: true, margin: "-80px" });
 
   const globalStatus: LoadStatus =
-    booksStatus === "idle"    || iframeStatus === "idle"    ? "idle"
+    booksStatus === "error" ? "error"
+    : booksStatus === "idle" || iframeStatus === "idle" ? "idle"
     : booksStatus === "loading" || iframeStatus === "loading" ? "loading"
     : "ready";
 
@@ -317,28 +319,30 @@ export default function LandingPage() {
   // Fetch books
   const loadBooks = useCallback(async () => {
     setBooksStatus("loading");
-    try {
-      const res = await fetch(
-        "https://gutendex.com/books?languages=en&sort=popular&mime_type=text%2Fplain&page=1",
-        { next: { revalidate: 3600 } } as RequestInit
-      );
-      if (!res.ok) throw new Error("fetch failed");
-      const data = await res.json();
-      const books: Book[] = (data.results || []).slice(0, 18).map((b: any) => ({
-        id: `gutenberg:${b.id}`,
-        title: b.title ?? "Untitled",
-        author: b.authors?.[0]?.name ?? "Unknown",
-        coverUrl: b.formats?.["image/jpeg"] || "/placeholder-book.jpg",
-        readUrl: `/read/gutenberg:${b.id}`,
-        source: "gutenberg",
-        isFullyReadable: true,
-      }));
-      setDemoBooks(books);
-      setActiveDemoBook(books[0] || null);
-      setBooksStatus("ready");
-    } catch {
-      setBooksStatus("idle");
+    for (const query of ["Pride and Prejudice", "fiction", "Alice"]) {
+      try {
+        const res = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        const books: Book[] = (data.results || [])
+          .filter((book: Book) => book.id && book.title && book.source)
+          .slice(0, 18)
+          .map((book: Book) => ({
+            ...book,
+            readUrl: `/read/${encodeURIComponent(book.id)}`,
+          }));
+        if (!books.length) continue;
+        setDemoBooks(books);
+        setActiveDemoBook(books[0]);
+        setBooksStatus("ready");
+        return;
+      } catch {
+        continue;
+      }
     }
+    setDemoBooks([]);
+    setActiveDemoBook(null);
+    setBooksStatus("error");
   }, []);
 
   useEffect(() => { loadBooks(); }, [loadBooks]);
@@ -406,7 +410,17 @@ export default function LandingPage() {
                 transition={{ duration: 0.25 }}
               >
                 A calm digital library —{" "}
-                <span className="text-white/40">{label}</span>
+                {booksStatus === "error" ? (
+                  <button
+                    type="button"
+                    onClick={() => void loadBooks()}
+                    className="text-red-300 underline underline-offset-2"
+                  >
+                    Retry
+                  </button>
+                ) : (
+                  <span className="text-white/40">{label}</span>
+                )}
               </motion.span>
             </AnimatePresence>
           </motion.div>

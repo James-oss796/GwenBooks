@@ -2,7 +2,6 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
@@ -45,6 +44,20 @@ export interface ButtonProps
   loading?: boolean;
 }
 
+export function ButtonSpinner({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn("relative inline-flex h-6 w-6 items-center justify-center", className)}
+      aria-hidden="true"
+    >
+      <span className="absolute inset-0 animate-spin">
+        <span className="absolute left-1/2 top-0 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-[#25388C] ring-2 ring-white shadow-[0_0_7px_rgba(255,255,255,0.9)]" />
+        <span className="absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-[#E7C9A5] ring-2 ring-[#25388C] shadow-[0_0_7px_rgba(231,201,165,0.9)]" />
+      </span>
+    </span>
+  );
+}
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
@@ -55,65 +68,67 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       loading = false,
       children,
       disabled,
+      onClick,
       ...props
     },
     ref
   ) => {
     const Comp = asChild ? Slot : "button";
 
-    /*
-     * IMPORTANT:
-     *
-     * Radix Slot requires exactly ONE child.
-     *
-     * Therefore, when asChild=true, we don't inject the
-     * loading spinner as another child.
-     */
+    const classNames = cn(
+      buttonVariants({ variant, size, className }),
+      "relative"
+    );
+
     if (asChild) {
-      return (
+      const child = (
         <Comp
-          className={cn(
-            buttonVariants({
-              variant,
-              size,
-              className,
-            })
-          )}
+          className={cn(classNames, loading && "pointer-events-none opacity-0")}
           ref={ref}
+          aria-busy={loading || undefined}
+          aria-disabled={loading || disabled || undefined}
+          tabIndex={loading || disabled ? -1 : props.tabIndex}
+          onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+            if (loading || disabled) {
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
+            onClick?.(event);
+          }}
           {...props}
         >
           {children}
         </Comp>
       );
+
+      if (!loading) return child;
+
+      return (
+        <span className="relative inline-flex items-center justify-center" aria-busy="true">
+          {child}
+          <span className="absolute inset-0 z-10 flex items-center justify-center">
+            <ButtonSpinner />
+          </span>
+        </span>
+      );
     }
 
-    /*
-     * Normal button.
-     *
-     * Normal <button> elements can have multiple children,
-     * so the loading spinner is safe here.
-     */
     return (
       <Comp
-        className={cn(
-          buttonVariants({
-            variant,
-            size,
-            className,
-          })
-        )}
+        className={classNames}
         ref={ref}
         disabled={loading || disabled}
+        aria-busy={loading || undefined}
+        onClick={onClick}
         {...props}
       >
+        <span className={cn(loading && "opacity-0")}>{children}</span>
         {loading && (
-          <Loader2
-            className="animate-spin"
-            aria-hidden="true"
-          />
+          <span className="absolute inset-0 z-10 flex items-center justify-center">
+            <ButtonSpinner />
+          </span>
         )}
-
-        {children}
       </Comp>
     );
   }

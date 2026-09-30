@@ -8,6 +8,13 @@ import BookNotFound from "@/components/BookNotFound"; // ✅ Your styled not-fou
 
 type ReadPageProps = {
   params: { id: string };
+  searchParams?: {
+    title?: string;
+    author?: string;
+    coverUrl?: string;
+    textUrl?: string;
+    downloadId?: string;
+  };
 };
 
 function chunkTextIntoPages(text: string, approxCharsPerPage = 4000) {
@@ -32,9 +39,50 @@ function chunkTextIntoPages(text: string, approxCharsPerPage = 4000) {
   return pages;
 }
 
-export default async function Page({ params }: ReadPageProps) {
+function normalizeBookText(text: string) {
+  const namedEntities: Record<string, string> = {
+    nbsp: " ",
+    amp: "&",
+    lt: "<",
+    gt: ">",
+    quot: '"',
+    apos: "'",
+    lsquo: "'",
+    rsquo: "'",
+    ldquo: '"',
+    rdquo: '"',
+    ndash: "-",
+    mdash: "-",
+    hellip: "...",
+  };
+
+  return text
+    .normalize("NFC")
+    .replace(/&#(x[\da-f]+|\d+);/gi, (_entity, code: string) => {
+      const value = code[0].toLowerCase() === "x"
+        ? Number.parseInt(code.slice(1), 16)
+        : Number.parseInt(code, 10);
+      return Number.isFinite(value) && value <= 0x10ffff
+        ? String.fromCodePoint(value)
+        : "";
+    })
+    .replace(/&(nbsp|amp|lt|gt|quot|apos|lsquo|rsquo|ldquo|rdquo|ndash|mdash|hellip);/gi, (_entity, name: string) => namedEntities[name.toLowerCase()] || "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u00AD\u200B-\u200D\uFEFF\uFFFD]/g, "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export default async function Page({ params, searchParams }: ReadPageProps) {
   const decodedId = decodeURIComponent(params.id);
-  const book = await fetchBookBySource(decodedId);
+  const book = await fetchBookBySource(decodedId, {
+    title: searchParams?.title,
+    author: searchParams?.author,
+    coverUrl: searchParams?.coverUrl,
+    readUrl: searchParams?.textUrl,
+    downloadId: searchParams?.downloadId,
+  });
 
   // 🔴 Fix: pass undefined-safe book to BookNotFound
   if (!book) {
@@ -52,43 +100,7 @@ downloadLinks: [],
 );
 }
 
-  const sourceNames: Record<string, string> = {
-    google: "Google Books",
-    googlebooks: "Google Books",
-    openlibrary: "Open Library",
-    internetarchive: "Internet Archive",
-    gutenberg: "Project Gutenberg",
-    openstax: "OpenStax",
-  };
-
-  if (book.source === "openstax" && book.readUrl) {
-    return (
-      <main className="min-h-screen bg-[#f7f5ef] text-gray-900">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 bg-white px-5 py-4 sm:px-8">
-          <div>
-            <h1 className="text-xl font-semibold">{book.title}</h1>
-            <p className="text-sm text-gray-500">OpenStax free textbook</p>
-          </div>
-          {book.downloadUrl ? (
-            <Link
-              href={`/api/books/download?url=${encodeURIComponent(book.downloadUrl)}`}
-              className="inline-flex items-center gap-2 rounded-md bg-green-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-800"
-            >
-              Download PDF
-            </Link>
-          ) : null}
-        </header>
-        <iframe
-          src={book.readUrl}
-          title={`${book.title} online textbook`}
-          className="h-[calc(100vh-78px)] min-h-[70vh] w-full border-0 bg-white"
-        />
-      </main>
-    );
-  }
-
-  // ❌ If book not readable (non-Gutenberg)
-  if (!book.isFullyReadable || book.source !== "gutenberg") {
+  if (!book.isFullyReadable || !["gutenberg", "internetarchive", "wikisource"].includes(book.source || "")) {
     const pdfUrl = book.downloadUrl || await fetchFallbackPDF(book.id, book.source);
 
     return (
@@ -151,9 +163,14 @@ downloadLinks: [],
   // ✅ Gutenberg book: load text
   let raw: string;
   try {
-    const textRes = await fetch(book.readUrl);
-    if (!textRes.ok) throw new Error(`Failed to fetch: ${textRes.status}`);
-    raw = await textRes.text();
+    if (book.textContent) {
+      raw = book.textContent;
+    } else {
+      if (!book.readUrl) throw new Error("No readable text URL is available");
+      const textRes = await fetch(book.readUrl);
+      if (!textRes.ok) throw new Error(`Failed to fetch: ${textRes.status}`);
+      raw = await textRes.text();
+    }
   } catch (err) {
     console.error("Error fetching book content:", err);
     return (
@@ -163,8 +180,7 @@ id: book.id,
 title: book.title,
 author: book.author,
 coverUrl: book.coverUrl,
-source: (book.source?.toLowerCase() ||
-"gutenberg") as "gutenberg" | "openlibrary" | "internetarchive" | "google",
+source: (book.source?.toLowerCase() || "gutenberg") as "gutenberg" | "internetarchive" | "wikisource",
 downloadLinks: [],
 }}
 />
@@ -191,7 +207,7 @@ downloadLinks: [],
       .trim();
   }
 
-  const pages = chunkTextIntoPages(raw, 3500);
+  const pages = chunkTextIntoPages(normalizeBookText(raw), 3500);
 
   if (pages.length === 0) {
     return (
@@ -201,8 +217,7 @@ id: book.id,
 title: book.title,
 author: book.author,
 coverUrl: book.coverUrl,
-source: (book.source?.toLowerCase() ||
-"gutenberg") as "gutenberg" | "openlibrary" | "internetarchive" | "google",
+source: (book.source?.toLowerCase() || "gutenberg") as "gutenberg" | "internetarchive" | "wikisource",
 downloadLinks: [],
 }}
 />
@@ -215,6 +230,7 @@ downloadLinks: [],
       book={{
         id: book.id,
         title: book.title,
+        source: book.source,
         author: book.author,
         coverUrl: book.coverUrl,
       }}

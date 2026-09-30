@@ -120,27 +120,60 @@ export const verifyCode = async (email: string, code: string) => {
   }
 };
 
-/* ---------------- FORGOT PASSWORD ---------------- */
+/* FORGOT PASSWORD */
 export const requestPasswordReset = async (email: string) => {
-  const existingUser = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, email))
-    .limit(1);
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
 
-  if (existingUser.length === 0) {
-    return { success: false, error: "No account found" };
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    if (existingUser.length === 0) {
+      return { success: false, error: "No account found" };
+    }
+
+    const user = existingUser[0];
+
+    // Generate the raw token that will be placed in the email
+    const token = randomBytes(32).toString("hex");
+
+    // Store only the hash in the database
+    const tokenHash = hashToken(token);
+
+    // Token expires in 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await db.insert(passwordResetTokens).values({
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+      used: false,
+    });
+
+    const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+
+    const { subject, text, html } =
+      resetPasswordEmailTemplate(resetLink);
+
+    await sendEmail({
+      to: normalizedEmail,
+      subject,
+      text,
+      html,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Password reset request error:", error);
+
+    return {
+      success: false,
+      error: "Unable to send password reset email",
+    };
   }
-
-  const token = randomBytes(32).toString("hex");
-  await redis.set(`reset:${token}`, email, { ex: 600 });
-
-  const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
-
-  const { subject, text, html } = resetPasswordEmailTemplate(resetLink);
-  await sendEmail({ to: email, subject, text, html });
-
-  return { success: true };
 };
 
 /* ---------------- RESET PASSWORD ---------------- */

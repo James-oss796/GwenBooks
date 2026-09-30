@@ -2,6 +2,7 @@ interface Book {
     id: string;
     title: string;
     readUrl?: string;
+    textContent?: string;
     downloadUrl?: string;
     downloadId?: string;
     author?: string;
@@ -17,7 +18,7 @@ interface Book {
     isLoanedBook?: boolean;
     createdAt?: Date | null;
     readUrl?: string;
-    source?: "gutenberg" | "openlibrary" | "internetarchive" | "google" | "googlebooks" | "openstax";
+    source?: "gutenberg" | "internetarchive" | "wikisource";
      isFullyReadable?: boolean;
   }
   

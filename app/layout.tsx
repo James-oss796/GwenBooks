@@ -5,7 +5,6 @@ import localFont from "next/font/local";
 import { ReactNode } from "react";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/auth";
-import { Analytics } from '@vercel/analytics/next';
 
 const ibmPlexSans = localFont({
   src: [
@@ -58,7 +57,7 @@ const RootLayout = async ({
 
   return (
     <html lang="en">
-      <body
+            <body
         className={`${ibmPlexSans.className} ${bebasNeue.variable} antialiased`}
         suppressHydrationWarning={true} // Add this line
       >

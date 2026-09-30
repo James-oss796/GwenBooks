@@ -19,6 +19,7 @@ async function fetchGutenbergBooks(): Promise<Book[]> {
       author: b.authors?.[0]?.name ?? "Unknown Author",
       genre: b.subjects?.[0] ?? "General",
       coverUrl: b.formats["image/jpeg"] ?? null,
+      readUrl: b.formats["text/html; charset=utf-8"] || b.formats["text/html"] || b.formats["text/plain; charset=utf-8"] || b.formats["text/plain"],
     }));
   } catch {
     return [];

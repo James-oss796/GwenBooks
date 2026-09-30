@@ -13,7 +13,7 @@ id: string | number;
 title: string;
 author?: string;
 coverUrl?: string;
-source: "gutenberg" | "openlibrary" | "internetarchive" | "google";
+  source: "gutenberg" | "internetarchive" | "wikisource";
 downloadLinks?: {
 format: string;
 url: string;
@@ -64,8 +64,9 @@ fetchFallbackLinks();
 }, [book.title, links.length]);
 
 function handleDownload(url: string) {
-  // Open in a new tab or start download directly
+  setDownloading(true);
   window.open(url, "_blank");
+  window.setTimeout(() => setDownloading(false), 1500);
 }
 
 
@@ -124,16 +125,10 @@ but you can still try downloading it below.
           key={link.format}
           onClick={() => handleDownload(link.url)}
           disabled={downloading}
+          loading={downloading}
           className="bg-primary text-dark-100 hover:bg-primary/90 w-full flex items-center justify-center gap-2 font-bold shadow-md"
         >
-          {downloading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Download className="w-4 h-4" />
-          )}
-          {downloading
-            ? "Downloading..."
-            : `Download ${link.format.toUpperCase()}`}
+          {downloading ? "Opening download..." : <><Download className="w-4 h-4" />Download {link.format.toUpperCase()}</>}
         </Button>
       ))
     ) : (

@@ -131,7 +131,7 @@ export default function UploadBookPage() {
           </div>
         )}
 
-        <Button type="submit" disabled={loading} className="w-full">
+        <Button type="submit" loading={loading} disabled={loading} className="w-full">
           {loading ? "Uploading..." : "Upload Book"}
         </Button>
       </form>

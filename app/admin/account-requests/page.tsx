@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { ButtonSpinner } from "@/components/ui/button";
 
 type PendingUser = {
   id: string;
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
 export default function AccountRequestsPage() {
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actingOn, setActingOn] = useState<{ id: string; action: "approve" | "reject" } | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -33,18 +35,25 @@ export default function AccountRequestsPage() {
   }, []);
 
   async function act(id: string, action: "approve" | "reject") {
-    const res = await fetch(`/api/admin/users/${action}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast.error(data?.error || "Action failed");
-      return;
+    setActingOn({ id, action });
+    try {
+      const res = await fetch(`/api/admin/users/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.error || "Action failed");
+        return;
+      }
+      toast.success(action === "approve" ? "User approved" : "User rejected");
+      setPending((p) => p.filter((u) => u.id !== id));
+    } catch {
+      toast.error("Action failed. Check your connection and try again.");
+    } finally {
+      setActingOn(null);
     }
-    toast.success(action === "approve" ? "User approved" : "User rejected");
-    setPending((p) => p.filter((u) => u.id !== id));
   }
 
   return (
@@ -83,15 +92,21 @@ export default function AccountRequestsPage() {
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => act(u.id, "approve")}
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"
+                        disabled={actingOn?.id === u.id}
+                        aria-busy={actingOn?.id === u.id && actingOn.action === "approve"}
+                        className="relative inline-flex min-w-24 items-center justify-center bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-70"
                       >
-                        Approve
+                        {actingOn?.id === u.id && actingOn.action === "approve" && <span className="absolute inset-0 flex items-center justify-center"><ButtonSpinner /></span>}
+                        <span className={actingOn?.id === u.id && actingOn.action === "approve" ? "opacity-0" : ""}>Approve</span>
                       </button>
                       <button
                         onClick={() => act(u.id, "reject")}
-                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"
+                        disabled={actingOn?.id === u.id}
+                        aria-busy={actingOn?.id === u.id && actingOn.action === "reject"}
+                        className="relative inline-flex min-w-24 items-center justify-center bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-70"
                       >
-                        Reject
+                        {actingOn?.id === u.id && actingOn.action === "reject" && <span className="absolute inset-0 flex items-center justify-center"><ButtonSpinner /></span>}
+                        <span className={actingOn?.id === u.id && actingOn.action === "reject" ? "opacity-0" : ""}>Reject</span>
                       </button>
                     </div>
                   </td>

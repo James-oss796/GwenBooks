@@ -5,6 +5,7 @@ import BookCover from "./BookCover";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { Button } from "./ui/button";
+import { ButtonSpinner } from "./ui/button";
 import { FastAverageColor } from "fast-average-color";
 import { useRouter } from "next/navigation";
 import { Download } from "lucide-react";
@@ -15,9 +16,10 @@ title: string;
 author?: string;
 genre?: string;
 coverUrl?: string | null;
+  readUrl?: string;
 coverColor?: string;
 isLoanedBook?: boolean;
-  source?: "gutenberg" | "openlibrary" | "internetarchive" | "google" | "googlebooks" | "openstax";
+  source?: "gutenberg" | "internetarchive" | "wikisource";
   downloadUrl?: string;
   downloadId?: string;
   priority?: boolean;
@@ -30,6 +32,7 @@ author,
 source,
 genre,
 coverUrl,
+readUrl,
   downloadUrl,
   downloadId,
   priority = false,
@@ -73,7 +76,14 @@ e.preventDefault();
   // ✅ Encode safely for Next.js route
   const safeId = encodeURIComponent(`${safeSource}:${cleanedId}`);
 
-  router.push(`/read/${safeId}`);
+  const readerParams = new URLSearchParams({
+    title,
+    author: author || "",
+    coverUrl: coverUrl || "",
+  });
+  if (readUrl) readerParams.set("textUrl", readUrl);
+  if (downloadId) readerParams.set("downloadId", downloadId);
+  router.push(`/read/${safeId}?${readerParams.toString()}`);
 };
 
 return (
@@ -105,8 +115,8 @@ return (
 
     {/* Spinner overlay */}
     {isLoading && (
-      <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
-        <div className="h-6 w-6 border-4 border-t-transparent border-white rounded-full animate-spin" />
+      <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/55">
+        <ButtonSpinner />
       </div>
     )}
   </button>

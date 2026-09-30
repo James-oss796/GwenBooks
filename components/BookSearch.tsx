@@ -87,6 +87,7 @@ export default function BookSearch({ userId }: BookSearchProps) {
                 id={id}
                 title={book.title}
                 author={book.author}
+                readUrl={book.readUrl}
                 genre={book.genre || source}
                 coverUrl={book.coverUrl || "/placeholder-book.jpg"}
                 coverColor={book.coverColor || "#ffffff"}
@@ -109,7 +110,7 @@ export default function BookSearch({ userId }: BookSearchProps) {
           </p>
         ) : !loading && (
           <p className="text-center text-gray-500 text-sm mt-6">
-            Search books from Project Gutenberg, OpenStax, Google Books, Open Library, and Internet Archive.
+            Search full-text novels from Project Gutenberg, public-domain Archive.org, and Wikisource.
           </p>
         )
       )}

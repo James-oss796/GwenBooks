@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 import { verifyCode } from "@/lib/actions/auth";
+import { Button } from "@/components/ui/button";
 
 export default function VerifyPage() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
+  const [verifying, setVerifying] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setVerifying(true);
     try {
-      const res = await verifyCode({ email, code });
+      const res = await verifyCode(email, code);
       if (res.success) {
         setMessage("✅ Email verified! You can now sign in.");
       } else {
@@ -20,6 +23,8 @@ export default function VerifyPage() {
     } catch (err) {
       console.error(err);
       setMessage("⚠️ Something went wrong. Try again.");
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -46,12 +51,14 @@ export default function VerifyPage() {
           required
         />
 
-        <button
+        <Button
           type="submit"
+          loading={verifying}
+          disabled={verifying}
           className="w-full bg-blue-600 text-white py-2 rounded"
         >
-          Verify
-        </button>
+          {verifying ? "Verifying..." : "Verify"}
+        </Button>
 
         {message && <p className="mt-3 text-center">{message}</p>}
       </form>

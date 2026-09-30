@@ -5,6 +5,7 @@ import config from '@/lib/config';
 import Image from 'next/image';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { ButtonSpinner } from '@/components/ui/button';
 
 
 const { env: { imagekit: {publicKey,  urlEndpoint}}} = config;
@@ -52,6 +53,7 @@ const FileUpload = ({
   const [file, setFile] = useState<{filePath: string | null}>({filePath: value ?? null});
 
     const [progress, setProgress]= useState(0);
+    const [uploading, setUploading] = useState(false);
 
     const style = {
       button: variant === "dark" ? "bg-dark-300" : "bg-light-600 border-gray-100 border",
@@ -61,6 +63,7 @@ const FileUpload = ({
     }
 
   const onError = (error: any) => {
+    setUploading(false);
     console.log(error);
     toast({
       title: `${type} upload failed!`,
@@ -69,6 +72,7 @@ const FileUpload = ({
     });
   }
   const onSuccess = (res:any) => {
+    setUploading(false);
     setFile(res);
     onFileChange(res.filePath);
 
@@ -114,7 +118,7 @@ const FileUpload = ({
           onSuccess={onSuccess}
           useUniqueFileName={true}
           validateFile={onValidate}
-          onUploadStart={()=> setProgress(0)}
+          onUploadStart={()=> { setProgress(0); setUploading(true); }}
           onUploadProgress={({loaded, total}) => {
             const percent = Math.round((loaded/total) * 100);
 
@@ -124,7 +128,7 @@ const FileUpload = ({
           accept={accept}
           />
 
-          <button className={cn("upload-btn", style.button)} onClick={(e) => {
+          <button type="button" disabled={uploading} aria-busy={uploading} className={cn("upload-btn relative", style.button)} onClick={(e) => {
             e.preventDefault();
 
             if(iKUploadRef.current){
@@ -132,10 +136,13 @@ const FileUpload = ({
               iKUploadRef.current?.click();
             }
           }}>
+            {uploading && <span className="absolute inset-0 z-10 flex items-center justify-center"><ButtonSpinner /></span>}
+            <span className={cn("inline-flex items-center gap-2", uploading && "opacity-0")}>
             <Image src="/icons/upload.svg" alt="upload-icon" width={20} height={20} className='object-contain' />
             <p className={cn('text-base', style.placeholder)}>{placeholder}</p>
 
             {file && <p className={cn(' upload-filename', style.text )}>{file.filePath}</p>}
+            </span>
 
           </button>
 

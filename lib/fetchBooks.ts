@@ -4,6 +4,7 @@ import { Book } from "@/types";
 // Simple in-memory cache
 const cache = new Map<string, { data: Book[]; timestamp: number }>();
 const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
+const archiveTextCache = new Map<string, Book | null>();
 
 async function fetchProviderJson(url: string, init: RequestInit = {}) {
   const controller = new AbortController();
@@ -17,6 +18,22 @@ async function fetchProviderJson(url: string, init: RequestInit = {}) {
   }
 }
 
+  type ReaderOverrides = Partial<Pick<Book, "title" | "author" | "coverUrl" | "readUrl" | "downloadId">>;
+
+  function isTrustedTextUrl(source: string, rawUrl?: string) {
+    if (!rawUrl) return false;
+    try {
+      const url = new URL(rawUrl);
+      if (url.protocol !== "https:") return false;
+      if (source === "gutenberg") return url.hostname === "www.gutenberg.org" || url.hostname === "gutenberg.org";
+      if (source === "internetarchive") return url.hostname === "archive.org" || url.hostname.endsWith(".archive.org");
+      if (source === "wikisource") return url.hostname === "en.wikisource.org" && url.pathname === "/w/api.php";
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
 function getCached(query: string): Book[] | null {
   const cached = cache.get(query.toLowerCase());
   if (!cached) return null;
@@ -28,7 +45,60 @@ function getCached(query: string): Book[] | null {
   return cached.data;
 }
 
-// 🔍 MAIN FETCH FUNCTION — Google Books first, with readability filtering
+  function matchesBookQuery(book: Book, query: string) {
+    const ignoredTerms = new Set(["the", "and", "for", "with", "from", "into", "book", "books"]);
+    const terms = query.toLowerCase().match(/[a-z0-9]+/g)?.filter((term) => term.length > 2 && !ignoredTerms.has(term)) || [];
+    if (!terms.length) return true;
+    const searchable = `${book.title} ${book.author || ""}`.toLowerCase();
+    return terms.every((term) => searchable.includes(term));
+  }
+
+async function getOpenArchiveBook(record: any, firstPublishYear?: number): Promise<Book | null> {
+  const identifier = String(record.identifier || "");
+  if (!identifier) return null;
+  if (archiveTextCache.has(identifier)) return archiveTextCache.get(identifier) || null;
+
+  try {
+    const metadata = await fetchProviderJson(`https://archive.org/metadata/${encodeURIComponent(identifier)}`);
+    const item = metadata.metadata || {};
+    const license = String(item.licenseurl || "");
+    const rights = String(item.rights || "");
+    const publicationYear = firstPublishYear || Number(String(item.date || item.year || "").match(/\b(1[0-9]{3}|20[0-2][0-9])\b/)?.[0]);
+    const isPublicDomain = Number.isFinite(publicationYear) && publicationYear > 0 && publicationYear <= 1930;
+    const isOpenLicensed = /creativecommons\.org\/(?:publicdomain|licenses\/by(?:-sa)?\/)/i.test(license) || /public domain/i.test(rights);
+    if (item["access-restricted-item"] === true || (!isPublicDomain && !isOpenLicensed)) {
+      archiveTextCache.set(identifier, null);
+      return null;
+    }
+
+    const textFile = (metadata.files || []).find((file: any) =>
+      /\.txt$/i.test(file.name || "") && !/(?:meta|marc|files\.txt|contents)/i.test(file.name)
+    );
+    if (!textFile?.name) {
+      archiveTextCache.set(identifier, null);
+      return null;
+    }
+
+    const encodedPath = String(textFile.name).split("/").map(encodeURIComponent).join("/");
+    const book: Book = {
+      id: `internetarchive:${identifier}`,
+      title: record.title || item.title || "Untitled",
+      author: Array.isArray(record.creator) ? record.creator.join(", ") : record.creator || item.creator || "Unknown",
+      coverUrl: `https://archive.org/services/img/${encodeURIComponent(identifier)}`,
+      readUrl: `https://archive.org/download/${encodeURIComponent(identifier)}/${encodedPath}`,
+      downloadId: identifier,
+      source: "internetarchive",
+      coverColor: "#fff",
+      isFullyReadable: true,
+    };
+    archiveTextCache.set(identifier, book);
+    return book;
+  } catch {
+    return null;
+  }
+}
+
+// Search only sources that can provide text to the in-app reader.
 export async function fetchBooks(query: string): Promise<Book[]> {
   if (!query?.trim()) return [];
 
@@ -57,73 +127,50 @@ export async function fetchBooks(query: string): Promise<Book[]> {
           isFullyReadable: true,
         };
       })).catch((error) => { console.warn("[Gutenberg] Search unavailable:", error); return []; }),
-    fetchProviderJson("https://openstax.org/apps/cms/api/books/?format=json", {
-      next: { revalidate: 3600 },
-    }).then((data) => {
-      const terms = normalizedQuery.split(/\s+/).filter(Boolean);
-      return (data.books || []).filter((book: any) => {
-        const searchable = [book.title, ...(book.subjects || []), ...(book.subject_categories || [])]
-          .join(" ").toLowerCase();
-        return book.book_state === "live" && book.pdf_url && terms.every((term) => searchable.includes(term));
-      }).slice(0, 12).map((book: any): Book => ({
-        id: `openstax:${String(book.slug || "").replace(/^books\//, "")}`,
-        title: book.title || "Untitled",
-        author: "OpenStax",
-        genre: (book.subjects || []).join(", ") || "Textbook",
-        coverUrl: book.cover_url || "/placeholder-book.jpg",
-        readUrl: book.webview_rex_link || book.webview_link,
-        downloadUrl: book.pdf_url,
-        source: "openstax",
+    fetchProviderJson(`https://openlibrary.org/search.json?q=${encodedQuery}&limit=20&has_fulltext=true`)
+      .then(async (data) => Promise.all((data.docs || [])
+        .filter((book: any) => book.ia?.length && book.first_publish_year && book.first_publish_year <= 1930)
+        .slice(0, 8).map(async (book: any) => {
+          // Map OpenLibrary books to the Book type
+          const archiveId = book.ia[0];
+          return getOpenArchiveBook({ identifier: archiveId, title: book.title, creator: book.author_name?.[0] }, book.first_publish_year);
+        })).then((books) => books.filter((book): book is Book => book !== null)))
+      .catch((error) => { console.warn("[OpenLibrary] Search unavailable:", error); return []; }),
+    fetchProviderJson(`https://en.wikisource.org/w/api.php?action=query&list=search&srnamespace=0&srlimit=8&format=json&srsearch=${encodedQuery}`)
+      .then((data) => (data.query?.search || []).map((page: any): Book => ({
+        id: `wikisource:${page.pageid}`,
+        title: page.title,
+        author: "Wikisource",
+        coverUrl: "/placeholder-book.jpg",
+        readUrl: `https://en.wikisource.org/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&pageids=${page.pageid}&format=json`,
+        source: "wikisource",
         coverColor: "#fff",
         isFullyReadable: true,
-      }));
-    }).catch((error) => { console.warn("[OpenStax] Search unavailable:", error); return []; }),
-    fetchProviderJson(`https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&filter=free-ebooks&maxResults=15`)
-      .then((data) => (data.items || []).filter((item: any) => {
-        const access = item.accessInfo;
-        return access?.webReaderLink && (access.viewability === "ALL_PAGES" || access.viewability === "PARTIAL" || access.accessViewStatus === "FULL_PUBLIC_DOMAIN");
-      }).slice(0, 8).map((item: any): Book => ({
-        id: `googlebooks:${item.id}`,
-        title: item.volumeInfo?.title || "Untitled",
-        author: item.volumeInfo?.authors?.join(", ") || "Unknown",
-        coverUrl: item.volumeInfo?.imageLinks?.thumbnail || item.volumeInfo?.imageLinks?.smallThumbnail || "/placeholder-book.jpg",
-        readUrl: item.accessInfo.webReaderLink,
-        source: "googlebooks",
-        coverColor: "#fff",
-        isFullyReadable: false,
-      }))).catch((error) => { console.warn("[GoogleBooks] Search unavailable:", error); return []; }),
-    fetchProviderJson(`https://openlibrary.org/search.json?q=${encodedQuery}&limit=20&has_fulltext=true`)
-      .then((data) => (data.docs || []).filter((book: any) => book.ia?.length)
-        .slice(0, 8).map((book: any): Book => {
-          const archiveId = book.ia[0];
-          return {
-            id: `openlibrary:${book.key?.replace(/^\/works\//, "") || archiveId}`,
-            title: book.title || "Untitled",
-            author: book.author_name?.[0] || "Unknown",
-            coverUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg` : "/placeholder-book.jpg",
-            readUrl: `https://archive.org/details/${archiveId}`,
-            downloadId: archiveId,
-            source: "openlibrary",
-            coverColor: "#fff",
-            isFullyReadable: false,
-          };
-        })).catch((error) => { console.warn("[OpenLibrary] Search unavailable:", error); return []; }),
-    fetchProviderJson(`https://archive.org/advancedsearch.php?q=${encodedQuery}%20AND%20mediatype:texts&fl[]=identifier,title,creator&rows=10&output=json`)
-      .then((data) => (data.response?.docs || []).slice(0, 6).map((book: any): Book => ({
-        id: `internetarchive:${book.identifier}`,
-        title: book.title || "Untitled",
-        author: Array.isArray(book.creator) ? book.creator.join(", ") : book.creator || "Unknown",
-        coverUrl: `https://archive.org/services/img/${book.identifier}`,
-        readUrl: `https://archive.org/details/${book.identifier}`,
-        downloadId: book.identifier,
-        source: "internetarchive",
-        coverColor: "#fff",
-        isFullyReadable: false,
-      }))).catch((error) => { console.warn("[InternetArchive] Search unavailable:", error); return []; }),
+      })))
+      .catch((error) => { console.warn("[Wikisource] Search unavailable:", error); return []; }),
   ]);
 
-  const results = providers.flat();
-  const uniqueResults = Array.from(new Map(results.map((book) => [book.id, book])).values());
+  const sourceRank: Record<string, number> = {
+    gutenberg: 0,
+    wikisource: 1,
+    internetarchive: 2,
+  };
+  const results = providers.flat()
+    .filter((book) => book.isFullyReadable && book.readUrl && matchesBookQuery(book, query))
+    .sort((a, b) => (sourceRank[a.source || ""] ?? 9) - (sourceRank[b.source || ""] ?? 9));
+  const byTitle = new Map<string, Book>();
+  for (const book of results) {
+    const normalizedTitle = book.title
+      .toLowerCase()
+      .replace(/\b(?:18|19|20)\d{2}\b/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    const existing = byTitle.get(normalizedTitle);
+    if (!existing || (sourceRank[book.source || ""] ?? 9) < (sourceRank[existing.source || ""] ?? 9)) {
+      byTitle.set(normalizedTitle, book);
+    }
+  }
+  const uniqueResults = Array.from(byTitle.values());
   cache.set(normalizedQuery, { data: uniqueResults, timestamp: Date.now() });
   return uniqueResults;
 }
@@ -131,7 +178,7 @@ export async function fetchBooks(query: string): Promise<Book[]> {
 // =====================================
 // 🔍 Fetch Book By Source (For Reader)
 // =====================================
-export async function fetchBookBySource(rawId: string) {
+export async function fetchBookBySource(rawId: string, overrides: ReaderOverrides = {}) {
   if (!rawId) return null;
 
   const decoded = decodeURIComponent(rawId);
@@ -142,6 +189,17 @@ export async function fetchBookBySource(rawId: string) {
       // 🏛️ Gutenberg - Only source that works in-app
       case "gutenberg": {
         const cleanId = idPart.replace(/\D/g, "");
+          if (isTrustedTextUrl(source, overrides.readUrl)) {
+            return {
+              id: cleanId,
+              title: overrides.title || "Untitled",
+              author: overrides.author || "Unknown",
+              coverUrl: overrides.coverUrl || "/placeholder-book.jpg",
+              readUrl: overrides.readUrl,
+              source: "gutenberg",
+              isFullyReadable: true,
+            };
+          }
         const res = await fetch(`https://gutendex.com/books/${cleanId}`);
         if (!res.ok) return null;
 
@@ -170,92 +228,44 @@ export async function fetchBookBySource(rawId: string) {
         };
       }
 
-      // 📖 Google Books - External only
-      case "googlebooks": {
-        const res = await fetch(
-          `https://www.googleapis.com/books/v1/volumes/${idPart}`
-        );
-        if (!res.ok) return null;
-
-        const data = await res.json();
-        const volume = data.volumeInfo;
-        const accessInfo = data.accessInfo;
-
-        return {
-          id: data.id,
-          title: volume.title,
-          author: (volume.authors && volume.authors.join(", ")) || "Unknown",
-          coverUrl:
-            volume.imageLinks?.thumbnail ||
-            volume.imageLinks?.smallThumbnail ||
-            "/placeholder-book.jpg",
-          readUrl: accessInfo?.webReaderLink || volume.previewLink,
-          source: "googlebooks",
-          isFullyReadable: false,
-        };
+      case "internetarchive": {
+        const archiveBook = await getOpenArchiveBook({ identifier: idPart });
+        if (!archiveBook?.readUrl) return null;
+        const textUrl = isTrustedTextUrl(source, overrides.readUrl) ? overrides.readUrl! : archiveBook.readUrl;
+        const textResponse = await fetch(textUrl);
+        if (!textResponse.ok) return null;
+        const textContent = await textResponse.text();
+        if (!textContent.trim()) return null;
+        return { ...archiveBook, textContent, isFullyReadable: true };
       }
 
-      // 📚 Open Library - External (redirects to Internet Archive)
-      case "openlibrary": {
-        const identifier = idPart;
-        const workRes = await fetch(`https://openlibrary.org/works/${identifier}.json`);
-        if (!workRes.ok) return null;
-        const workData = await workRes.json();
-        return {
-          id: identifier,
-          title: workData.title || "Untitled",
-          author: workData.authors?.[0]?.author?.key?.replace("/authors/", "") || "Unknown",
-          coverUrl: workData.covers?.[0]
-            ? `https://covers.openlibrary.org/b/id/${workData.covers[0]}-L.jpg`
-            : "/placeholder-book.jpg",
-          readUrl: workData.ia?.[0]
-            ? `https://archive.org/details/${workData.ia[0]}`
-            : `https://openlibrary.org/works/${identifier}`,
-          source: "openlibrary",
-          isFullyReadable: false,
-        };
-      }
-
-      case "openstax": {
-        const catalogRes = await fetch(
-          "https://openstax.org/apps/cms/api/books/?format=json",
-          { next: { revalidate: 3600 } }
-        );
-        if (!catalogRes.ok) return null;
-        const catalog = await catalogRes.json();
-        const slug = `books/${idPart}`;
-        const entry = catalog.books?.find((book: any) => book.slug === slug);
-        if (!entry) return null;
+      case "wikisource": {
+        const textUrl = isTrustedTextUrl(source, overrides.readUrl)
+          ? overrides.readUrl!
+          : `https://en.wikisource.org/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&pageids=${encodeURIComponent(idPart)}&format=json`;
+        const response = await fetchProviderJson(textUrl);
+        const page = response.query?.pages?.[idPart];
+        const textContent = page?.extract;
+        if (!textContent?.trim()) return null;
         return {
           id: idPart,
-          title: entry.title || "Untitled",
-          author: "OpenStax",
-          coverUrl: entry.cover_url || "/placeholder-book.jpg",
-          readUrl: entry.webview_rex_link || entry.webview_link,
-          downloadUrl: entry.pdf_url,
-          source: "openstax",
-          isFullyReadable: false,
+          title: page.title || "Untitled",
+          author: "Wikisource",
+          coverUrl: "/placeholder-book.jpg",
+          source: "wikisource",
+          textContent,
+          isFullyReadable: true,
         };
       }
 
-      // 🗄️ Internet Archive - External only
       case "internetarchive": {
-        const identifier = idPart;
-        const metadataRes = await fetch(
-          `https://archive.org/metadata/${identifier}`
-        );
-        if (!metadataRes.ok) return null;
-        const metadata = await metadataRes.json();
-
-        return {
-          id: identifier,
-          title: metadata.metadata?.title || "Untitled",
-          author: metadata.metadata?.creator || "Unknown",
-          coverUrl: `https://archive.org/services/img/${identifier}`,
-          readUrl: `https://archive.org/details/${identifier}`,
-          source: "internetarchive",
-          isFullyReadable: false,
-        };
+        const archiveBook = await getOpenArchiveBook({ identifier: idPart });
+        if (!archiveBook?.readUrl) return null;
+        const textResponse = await fetch(archiveBook.readUrl);
+        if (!textResponse.ok) return null;
+        const textContent = await textResponse.text();
+        if (!textContent.trim()) return null;
+        return { ...archiveBook, textContent, isFullyReadable: true };
       }
 
       default:
