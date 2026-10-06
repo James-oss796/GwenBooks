@@ -19,32 +19,11 @@ type LoadStatus = "idle" | "loading" | "ready" | "error";
 
 // ─── Status dot config ────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  idle:    { color: "bg-red-500",     glow: "shadow-red-500/80",     label: "Not loaded" },
+  idle:    { color: "bg-slate-400",   glow: "shadow-slate-400/40",   label: "Checking sources…" },
   loading: { color: "bg-amber-400",   glow: "shadow-amber-400/80",   label: "Loading…"   },
   ready:   { color: "bg-emerald-400", glow: "shadow-emerald-400/80", label: "Live"       },
   error:   { color: "bg-red-400",     glow: "shadow-red-400/80",     label: "Retry"      },
 };
-
-// ─── Cycling words ────────────────────────────────────────────────────────────
-const CYCLING_WORDS = [
-  "chapters",
-  "plot twists",
-  "first editions",
-  "dog-eared pages",
-  "midnight reads",
-  "lost classics",
-  "new worlds",
-  "your next obsession",
-  "the last page",
-  "every story",
-];
-
-// ─── Stats ────────────────────────────────────────────────────────────────────
-const STATS = [
-  { value: 70000, suffix: "+",     label: "Books available"       },
-  { value: 100,   suffix: "% free", label: "Forever, no paywalls" },
-  { value: 1,     suffix: " tap",   label: "AI summary, any page" },
-];
 
 // ─── Stack layout ─────────────────────────────────────────────────────────────
 const STACK_CONFIG = [
@@ -53,28 +32,6 @@ const STACK_CONFIG = [
   { x: -8,  y: 4,   rotate: 3,   z: 30, scale: 0.96, depth: 1.3 },
   { x: 22,  y: -18, rotate: -10, z: 40, scale: 1.0,  depth: 1.6 },
 ];
-
-// ─── Animated counter ─────────────────────────────────────────────────────────
-function AnimatedCounter({ target, suffix }: { target: number; suffix: string }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true });
-
-  useEffect(() => {
-    if (!inView) return;
-    let current = 0;
-    const step = 16;
-    const increment = target / (1400 / step);
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= target) { setCount(target); clearInterval(timer); }
-      else setCount(Math.floor(current));
-    }, step);
-    return () => clearInterval(timer);
-  }, [inView, target]);
-
-  return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
-}
 
 // ─── Word-by-word headline ────────────────────────────────────────────────────
 function AnimatedWords({
@@ -121,6 +78,8 @@ function FloatingCard({
   smoothY: ReturnType<typeof useSpring>;
 }) {
   const cfg = STACK_CONFIG[index];
+  const [coverFailed, setCoverFailed] = useState(false);
+  useEffect(() => setCoverFailed(false), [book?.coverUrl]);
 
   const cardX      = useTransform(smoothX, (v) => v * 18 * cfg.depth);
   const cardY      = useTransform(smoothY, (v) => v * 12 * cfg.depth);
@@ -162,7 +121,7 @@ function FloatingCard({
           boxShadow: `0 ${20 + index * 4}px ${40 + index * 8}px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.07)`,
         }}
       >
-        {book?.coverUrl ? (
+        {book?.coverUrl && !coverFailed ? (
           <Image
             src={book.coverUrl}
             alt={book.title || "Book cover"}
@@ -170,7 +129,14 @@ function FloatingCard({
             className="object-cover"
             sizes="160px"
             priority={index === 3}
+            onError={() => setCoverFailed(true)}
           />
+        ) : book ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 bg-stone-100 p-5 text-center text-stone-800">
+            <span aria-hidden="true" className="text-3xl">▤</span>
+            <span className="line-clamp-5 font-serif text-base font-semibold">{book.title}</span>
+            {book.author && <span className="line-clamp-3 text-sm">{book.author}</span>}
+          </div>
         ) : (
           // Shown only while books haven't loaded yet
           <div className="w-full h-full bg-gradient-to-br from-white/10 to-white/5 animate-pulse" />
@@ -222,10 +188,10 @@ function FloatingBookStack({ books }: { books: Book[] }) {
     const tryListen = () => {
       if (
         typeof DeviceOrientationEvent !== "undefined" &&
-        // @ts-ignore — requestPermission is iOS-only and not in standard TS types
+        // @ts-expect-error — requestPermission is iOS-only and not in standard TS types
         typeof DeviceOrientationEvent.requestPermission === "function"
       ) {
-        // @ts-ignore
+        // @ts-expect-error — requestPermission is iOS-only and not in standard TS types
         DeviceOrientationEvent.requestPermission()
           .then((state: string) => {
             if (state === "granted") {
@@ -266,26 +232,6 @@ function FloatingBookStack({ books }: { books: Book[] }) {
         />
       ))}
 
-      {/* "Now reading" badge */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ delay: 1.1, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute top-6 right-4 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[11px] text-white/70"
-      >
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        Now reading
-      </motion.div>
-
-      {/* Library size badge */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 1.3, duration: 0.5 }}
-        className="absolute bottom-10 left-4 z-50 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[11px] text-white/60"
-      >
-        📖 70,000+ titles
-      </motion.div>
     </div>
   );
 }
@@ -293,10 +239,10 @@ function FloatingBookStack({ books }: { books: Book[] }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const [demoBooks, setDemoBooks]           = useState<Book[]>([]);
+  const [failedCoverIds, setFailedCoverIds] = useState<string[]>([]);
   const [activeDemoBook, setActiveDemoBook] = useState<Book | null>(null);
   const [booksStatus, setBooksStatus]       = useState<LoadStatus>("idle");
   const [iframeStatus, setIframeStatus]     = useState<LoadStatus>("idle");
-  const [cycleIndex, setCycleIndex]         = useState(0);
 
   const iframeRef      = useRef<HTMLIFrameElement>(null);
   const featuresRef    = useRef<HTMLElement>(null);
@@ -310,21 +256,13 @@ export default function LandingPage() {
 
   const { color, glow, label } = STATUS_CONFIG[globalStatus];
 
-  // Cycle word
-  useEffect(() => {
-    const id = setInterval(() => setCycleIndex(i => (i + 1) % CYCLING_WORDS.length), 2400);
-    return () => clearInterval(id);
-  }, []);
-
  // Fetch books
 const loadBooks = useCallback(async () => {
   setBooksStatus("loading");
 
-  const queries = [
-    "fiction",
-    "adventure",
-    "mystery",
-  ];
+  // Keep the home preview to one provider fan-out; parallel title fan-outs
+  // were triggering catalog 429s before the visitor even started a search.
+  const queries = ["Dracula"];
 
   try {
     const responses = await Promise.allSettled(
@@ -355,22 +293,10 @@ const loadBooks = useCallback(async () => {
           continue;
         }
 
-        // Only keep books that actually have a cover
-        const coverUrl =
-          book.coverUrl ||
-          book.cover ||
-          book.coverImage ||
-          book.formats?.["image/jpeg"] ||
-          book.formats?.["image/jpg"];
-
-        if (!coverUrl) {
-          continue;
-        }
-
         allBooks.push({
           ...book,
-          coverUrl,
-          readUrl: `/read/${encodeURIComponent(book.id)}`,
+          coverUrl: book.coverUrl || "",
+          readUrl: book.isFullyReadable ? `/read/${encodeURIComponent(book.id)}?title=${encodeURIComponent(book.title)}&author=${encodeURIComponent(book.author || "")}&coverUrl=${encodeURIComponent(book.coverUrl || "")}&textUrl=${encodeURIComponent(book.readUrl || "")}` : undefined,
         });
       }
     }
@@ -382,12 +308,7 @@ const loadBooks = useCallback(async () => {
       ).values()
     );
 
-    // Shuffle so the same books aren't always shown first
-    const shuffledBooks = [...uniqueBooks].sort(
-      () => Math.random() - 0.5
-    );
-
-    const finalBooks = shuffledBooks.slice(0, 60);
+    const finalBooks = uniqueBooks.filter((entry) => entry.isFullyReadable && entry.readUrl && entry.coverUrl).slice(0, 20);
 
     if (!finalBooks.length) {
       setDemoBooks([]);
@@ -412,8 +333,9 @@ const loadBooks = useCallback(async () => {
 
   useEffect(() => {
     if (!activeDemoBook) return;
-    setIframeStatus("loading");
+    setIframeStatus(activeDemoBook.isFullyReadable && !!activeDemoBook.readUrl ? "loading" : "ready");
   }, [activeDemoBook]);
+  const activeSourceUrl = activeDemoBook?.sources?.find((source) => source.url)?.url || activeDemoBook?.sourceUrl;
 
   return (
     <main className="min-h-screen text-white bg-dark-100 bg-pattern bg-top bg-cover overflow-x-hidden">
@@ -472,7 +394,7 @@ const loadBooks = useCallback(async () => {
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.25 }}
               >
-                A calm digital library —{" "}
+              Discover, verify, and read —{" "}
                 {booksStatus === "error" ? (
                   <button
                     type="button"
@@ -490,23 +412,9 @@ const loadBooks = useCallback(async () => {
 
           {/* Headline */}
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-semibold leading-[1.06] tracking-tight">
-            <AnimatedWords text="Where every" delay={0.1} stagger={0.09} />
+            <AnimatedWords text="Find a book worth reading." delay={0.1} stagger={0.09} />
             <br />
-            <span className="inline-flex items-baseline gap-3 flex-wrap">
-              <AnimatePresence mode="wait">
-                <motion.span
-                  key={cycleIndex}
-                  initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
-                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, y: -20, filter: "blur(8px)" }}
-                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                  className="bg-gradient-to-r from-emerald-300 via-sky-300 to-violet-400 bg-clip-text text-transparent"
-                >
-                  {CYCLING_WORDS[cycleIndex]}
-                </motion.span>
-              </AnimatePresence>
-              <AnimatedWords text="live forever." delay={0.3} stagger={0.09} />
-            </span>
+            <span className="bg-gradient-to-r from-emerald-300 via-sky-300 to-violet-400 bg-clip-text text-transparent">Read it here.</span>
           </h1>
 
           {/* Subheading */}
@@ -516,9 +424,7 @@ const loadBooks = useCallback(async () => {
             transition={{ delay: 0.7, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="text-lg text-white/60 max-w-lg leading-relaxed"
           >
-            A reading sanctuary for those who get lost in pages. Track your journey,
-            discover forgotten classics, and let AI illuminate every chapter —
-            whether you read for pleasure or write for legacy.
+            Search real book catalogs, see where a readable text is available, and open supported books in one comfortable reader. Save your place and come back later.
           </motion.p>
 
           {/* CTAs — original styles */}
@@ -528,30 +434,11 @@ const loadBooks = useCallback(async () => {
             transition={{ delay: 0.9, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
             className="flex gap-4 flex-wrap"
           >
-            <Button asChild size="lg" className="rounded-full px-6">
-              <Link href="/sign-up">Start Reading</Link>
-            </Button>
-            <Button asChild size="lg" className="rounded-full px-6 bg-white text-black">
-              <Link href="/library">Explore Library</Link>
+            <Button asChild size="lg" className="rounded-full px-7">
+              <Link href="/books/search">Find your next book</Link>
             </Button>
           </motion.div>
 
-          {/* Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-wrap gap-8 pt-2 border-t border-white/[0.07]"
-          >
-            {STATS.map((stat) => (
-              <div key={stat.label} className="flex flex-col pt-4">
-                <span className="text-2xl font-semibold text-white tracking-tight">
-                  <AnimatedCounter target={stat.value} suffix={stat.suffix} />
-                </span>
-                <span className="text-xs text-white/40 mt-0.5">{stat.label}</span>
-              </div>
-            ))}
-          </motion.div>
         </motion.div>
 
         {/* RIGHT — floating book stack */}
@@ -568,10 +455,10 @@ const loadBooks = useCallback(async () => {
 
       {/* ── SCROLLING BOOK STRIP ── */}
       <section className="overflow-hidden py-10 relative">
-        <div className="flex w-max gap-4 px-4 animate-scroll">
+        <div className={`flex w-max gap-4 px-4 ${demoBooks.length > 1 ? "animate-scroll" : "mx-auto"}`}>
           {(demoBooks.length > 0
-            ? [...demoBooks, ...demoBooks]
-            : Array.from({ length: 24 })
+            ? (demoBooks.length > 1 ? [...demoBooks, ...demoBooks] : demoBooks)
+            : booksStatus === "loading" ? Array.from({ length: 8 }) : []
           ).map((book, i) =>
             book ? (
               <button
@@ -587,15 +474,17 @@ const loadBooks = useCallback(async () => {
                   className="aspect-[2/3] relative rounded-lg overflow-hidden bg-white/5 ring-1 ring-white/10 group-hover:ring-white/30 transition-all"
                   style={{ position: "relative", width: 140, height: 210 }}
                 >
-                  <img
-                    src={(book as Book).coverUrl || "/placeholder-book.jpg"}
-                    alt={(book as Book).title}
-                    width={140}
-                    height={210}
+                  {(book as Book).coverUrl && !failedCoverIds.includes((book as Book).id) ? <Image
+                    src={(book as Book).coverUrl}
+                    alt={`Cover of ${(book as Book).title}`}
+                    fill
+                    sizes="140px"
+                    unoptimized
                     loading="lazy"
                     decoding="async"
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
+                    onError={() => setFailedCoverIds((ids) => ids.includes((book as Book).id) ? ids : [...ids, (book as Book).id])}
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  /> : <div className="flex h-full flex-col items-center justify-center gap-2 bg-stone-100 p-4 text-center text-stone-800"><span aria-hidden="true" className="text-2xl">▤</span><span className="line-clamp-5 font-serif text-sm font-semibold">{(book as Book).title}</span>{(book as Book).author && <span className="line-clamp-2 text-xs">{(book as Book).author}</span>}</div>}
                 </div>
                 <p className="text-xs mt-2 truncate text-white/50 group-hover:text-white/80 transition-colors">
                   {(book as Book).title}
@@ -606,6 +495,7 @@ const loadBooks = useCallback(async () => {
             )
           )}
         </div>
+        {!demoBooks.length && booksStatus !== "loading" && <p className="px-6 text-sm text-white/60">Live catalog results are unavailable right now. <Link href="/books/search" className="underline underline-offset-2">Try book search</Link>.</p>}
         <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-black/50" />
         <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-black/50" />
       </section>
@@ -619,7 +509,7 @@ const loadBooks = useCallback(async () => {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="text-2xl text-center font-semibold mb-3"
         >
-          Read using your system
+          Reading options
         </motion.h2>
         <motion.p
           initial={{ opacity: 0 }}
@@ -628,7 +518,7 @@ const loadBooks = useCallback(async () => {
           transition={{ delay: 0.2, duration: 0.5 }}
           className="text-center text-white/40 text-sm mb-8"
         >
-          Click any book above to preview it here
+          Choose a real, readable catalog result above. This preview opens the same GwenBooks reader used for books.
         </motion.p>
 
         <div className="rounded-xl overflow-hidden border border-white/10 bg-black/40">
@@ -645,6 +535,7 @@ const loadBooks = useCallback(async () => {
             </span>
           </div>
           <div className="relative">
+            {activeDemoBook?.isFullyReadable && activeDemoBook.readUrl ? <>
             {iframeStatus === "loading" && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm">
                 <div className="flex flex-col items-center gap-3">
@@ -659,12 +550,18 @@ const loadBooks = useCallback(async () => {
             <iframe
               ref={iframeRef}
               key={activeDemoBook?.id}
-              title="read-system-demo"
-              src={activeDemoBook?.readUrl || "/read/gutenberg%3A1513"}
+              title={`Read ${activeDemoBook.title} in GwenBooks`}
+              src={activeDemoBook.readUrl}
               className="w-full h-[420px]"
               scrolling="no"
               onLoad={() => setIframeStatus("ready")}
             />
+            </> : activeDemoBook ? <div className="flex min-h-64 flex-col items-center justify-center gap-4 p-8 text-center">
+              <p className="max-w-lg text-white/70">This catalog result does not provide a readable text and cover suitable for the GwenBooks preview.</p>
+              {activeSourceUrl && <a href={activeSourceUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-white px-5 py-3 font-semibold text-black">Open source<span className="sr-only"> (opens in new tab)</span></a>}
+            </div> : <div className="flex min-h-64 items-center justify-center p-8 text-center text-white/60">
+              {booksStatus === "loading" ? "Loading real book discovery results…" : booksStatus === "error" ? "Catalog results are temporarily unavailable." : "No books were returned by the catalogs."}
+            </div>}
           </div>
         </div>
       </section>
@@ -681,9 +578,9 @@ const loadBooks = useCallback(async () => {
         </motion.h2>
         <div className="grid sm:grid-cols-3 gap-6">
           {[
-            { icon: "📖", title: "Progress tracking",     desc: "Your reading position is saved automatically across every device." },
-            { icon: "✦",  title: "AI page summaries",     desc: "One tap to get a clear summary of any page without leaving the reader." },
-            { icon: "🔖", title: "Favorites & bookmarks", desc: "Save any book to your library and return right where you left off." },
+            { icon: "01", title: "Reading progress",      desc: "Pick up supported in-app books from the last page saved on your account or device." },
+            { icon: "02",  title: "Source transparency",   desc: "See which catalog supplied the metadata and follow its legitimate availability options." },
+            { icon: "03", title: "Saved books",           desc: "Keep books in your personal list and return to them from your profile." },
           ].map((f, i) => (
             <motion.div
               key={f.title}
@@ -700,6 +597,22 @@ const loadBooks = useCallback(async () => {
         </div>
       </section>
 
+      <section className="border-y border-white/10 bg-white/[0.025] px-4 py-20">
+        <div className="mx-auto max-w-5xl">
+          <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200/70">A reading workflow, not just a catalog</p>
+          <h2 className="mx-auto mt-3 max-w-2xl text-center text-3xl font-semibold tracking-tight">From a question to a book you can actually open.</h2>
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {[
+              ["Discover", "Search external catalogs and see the source attached to each real result."],
+              ["Read", "When a provider exposes usable text, open it in GwenBooks. Otherwise, the source and formats stay clear."],
+              ["Return", "Save books, keep private uploads, and resume supported reading from your library."],
+            ].map(([title, copy], index) => <article key={title} className="rounded-2xl border border-white/10 bg-black/20 p-6">
+              <p className="text-sm font-semibold text-emerald-200/80">0{index + 1}</p><h3 className="mt-3 text-xl font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-white/60">{copy}</p>
+            </article>)}
+          </div>
+        </div>
+      </section>
+
       {/* ── FOOTER ── */}
       <footer className="border-t border-white/10 pt-16 pb-10 text-center px-4">
         <motion.h3
@@ -711,14 +624,12 @@ const loadBooks = useCallback(async () => {
         >
           Start your reading journey today
         </motion.h3>
-        <div className="mt-6 flex justify-center gap-4">
+        <div className="mt-6 flex flex-wrap justify-center gap-4">
           <Button asChild size="lg" className="rounded-full px-6">
-            <Link href="/sign-up">Create Account</Link>
-          </Button>
-          <Button asChild size="lg" className="rounded-full px-6 bg-white text-black">
-            <Link href="/library">Explore Library</Link>
+            <Link href="/books/search">Search the catalog</Link>
           </Button>
         </div>
+        <Link href="/sign-up" className="mt-3 inline-block text-sm text-white/60 underline underline-offset-4">Create a free account to save books and reading progress</Link>
         <p className="mt-10 text-xs text-white/40">
           © {new Date().getFullYear()} GwenBooks
         </p>

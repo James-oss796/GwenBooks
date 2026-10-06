@@ -2,6 +2,7 @@ import { db } from "@/DATABASE/drizzle";
 import { uploaded_books } from "@/DATABASE/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 async function readId(req: Request): Promise<number | null> {
   const contentType = req.headers.get("content-type") || "";
@@ -20,6 +21,8 @@ async function readId(req: Request): Promise<number | null> {
 }
 
 export async function POST(req: Request) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return NextResponse.json({ error: "Forbidden" }, { status: guard.status });
   try {
     const id = await readId(req);
     if (!id) return NextResponse.json({ error: "Missing book ID" }, { status: 400 });

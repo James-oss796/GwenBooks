@@ -9,10 +9,14 @@ export const dynamic = "force-dynamic";
 type PendingBook = {
   id: number;
   title: string;
+  author: string | null;
   description: string | null;
   genre: string | null;
   language: string | null;
   fileUrl: string | null;
+  fileType: string | null;
+  requestedPublic: boolean;
+  rightsAttested: boolean;
   createdAt: string | null;
   uploaderEmail: string | null;
 };
@@ -49,7 +53,7 @@ export default function ApprovalsPage() {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success(action === "approve" ? "✅ Book approved successfully!" : "❌ Book rejected successfully!");
+        toast.success(action === "approve" ? "Book approved." : "Book rejected.");
         await refresh();
       } else {
         toast.error(data.error || "Something went wrong!");
@@ -64,7 +68,7 @@ export default function ApprovalsPage() {
   return (
     <main className="max-w-6xl mx-auto py-10 px-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-blue-700">📚 Pending Book Approvals</h1>
+        <h1 className="text-3xl font-bold text-blue-700">Pending book approvals</h1>
         <Link href="/admin" className="text-sm text-blue-600 hover:underline">
           ← Back to Dashboard
         </Link>
@@ -74,7 +78,7 @@ export default function ApprovalsPage() {
         <p className="text-gray-500 text-center py-10">Loading…</p>
       ) : pendingBooks.length === 0 ? (
         <p className="text-gray-500 text-center py-10">
-          No pending books for approval 🎉
+          No pending books for approval.
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -84,6 +88,7 @@ export default function ApprovalsPage() {
               className="border border-gray-200 rounded-2xl p-5 shadow-sm bg-white hover:shadow-md transition-all"
             >
               <h2 className="font-semibold text-lg text-gray-800">{book.title}</h2>
+              <p className="text-sm text-gray-600">{book.author || "Unknown author"} · {book.fileType?.toUpperCase() || "Book"}</p>
               {book.uploaderEmail && (
                 <p className="text-sm text-gray-500 mt-1">
                   Uploaded by{" "}
@@ -97,6 +102,7 @@ export default function ApprovalsPage() {
               <p className="text-xs text-gray-400 mt-1">
                 Genre: {book.genre || "N/A"} • Language: {book.language || "N/A"}
               </p>
+              <p className="mt-2 text-xs text-gray-600">Sharing request: {book.requestedPublic ? "Public after approval" : "Private to uploader"}{book.requestedPublic && !book.rightsAttested ? " · Rights confirmation missing" : ""}</p>
 
               <div className="flex items-center justify-between mt-3">
                 {book.fileUrl && (
@@ -125,7 +131,7 @@ export default function ApprovalsPage() {
                   className="relative inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white w-1/2 py-2 rounded-lg text-sm font-semibold disabled:opacity-70"
                 >
                   {actingOn?.id === book.id && actingOn.action === "approve" && <span className="absolute inset-0 flex items-center justify-center"><ButtonSpinner /></span>}
-                  <span className={actingOn?.id === book.id && actingOn.action === "approve" ? "opacity-0" : ""}>✅ Approve</span>
+                  <span className={actingOn?.id === book.id && actingOn.action === "approve" ? "opacity-0" : ""}>Approve</span>
                 </button>
 
                 <button
@@ -135,7 +141,7 @@ export default function ApprovalsPage() {
                   className="relative inline-flex items-center justify-center bg-red-600 hover:bg-red-700 text-white w-1/2 py-2 rounded-lg text-sm font-semibold disabled:opacity-70"
                 >
                   {actingOn?.id === book.id && actingOn.action === "reject" && <span className="absolute inset-0 flex items-center justify-center"><ButtonSpinner /></span>}
-                  <span className={actingOn?.id === book.id && actingOn.action === "reject" ? "opacity-0" : ""}>❌ Reject</span>
+                  <span className={actingOn?.id === book.id && actingOn.action === "reject" ? "opacity-0" : ""}>Reject</span>
                 </button>
               </div>
             </div>

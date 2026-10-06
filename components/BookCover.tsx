@@ -1,5 +1,7 @@
+"use client";
+
 import { cn } from '@/lib/utils';
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import BookCoverSvg from './BookCoversvg';
 
@@ -28,16 +30,21 @@ interface Props {
   coverUrl: string;
   onImageLoad?: (image: HTMLImageElement) => void;
   priority?: boolean;
+  title?: string;
+  author?: string;
 }
 
 const BookCover = ({
   className,
   variant = "regular",
   coverColor = "#012b48",
-  coverUrl = "https://placehold.co/400x600.png",
+  coverUrl = "",
   onImageLoad,
   priority = false,
+  title = "Book cover unavailable",
+  author,
 }: Props) => {
+  const [failed, setFailed] = useState(false);
   return (
     <div
       className={cn(
@@ -48,25 +55,30 @@ const BookCover = ({
       // ✅ background color from fast-average-color
       style={{ position: "relative", backgroundColor: coverColor }}
     >
-      {/* SVG overlay for extra depth */}
+      {/* Keep the decorative book frame behind the cover artwork. */}
       <BookCoverSvg coverColor={coverColor} />
+      {(!coverUrl || failed) && <div className="absolute inset-[8%_7%_9%_20%] z-10 flex flex-col justify-center gap-2 overflow-hidden bg-stone-100 p-3 text-center text-stone-800">
+        <span className="line-clamp-5 font-serif text-sm font-semibold">{title}</span>
+        {author && <span className="line-clamp-3 text-xs">{author}</span>}
+      </div>}
 
       {/* Book Image Layer */}
-      <div
-        className="absolute z-10"
-        style={{ position: "absolute", top: 0, bottom: 0, left: "12%", width: "87.5%" }}
+      {coverUrl && !failed && <div
+        className="absolute z-10 overflow-hidden"
+        style={{ position: "absolute", top: "1.5%", bottom: "12.5%", left: "12%", width: "87.5%" }}
       >
         <Image
           src={coverUrl}
-          alt="Book Cover"
+          alt={`Cover of ${title}`}
           fill
           sizes={imageSizes[variant]}
           priority={priority}
+          onError={() => setFailed(true)}
           crossOrigin="anonymous"
           onLoad={(event) => onImageLoad?.(event.currentTarget)}
-          className="rounded-sm object-fill"
+          className="rounded-sm object-cover"
         />
-      </div>
+      </div>}
     </div>
   );
 };

@@ -126,7 +126,7 @@ export default async function AdminDashboard() {
                 <tr key={user.id} className="border-b hover:bg-gray-50">
                   <td className="py-2">{user.fullName}</td>
                   <td className="py-2">{user.email}</td>
-                  <td className="py-2">{new Date(user.lastActivityDate).toLocaleDateString()}</td>
+                  <td className="py-2">{user.lastActivityDate ? new Date(user.lastActivityDate).toLocaleDateString() : "—"}</td>
                 </tr>
               ))
             )}

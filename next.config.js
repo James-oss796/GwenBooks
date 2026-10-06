@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async headers() {
+    return [{
+      source: "/sw.js",
+      headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+    }];
+  },
   images: {
     remotePatterns: [
       {
@@ -35,9 +41,6 @@ const nextConfig = {
         hostname: "developers.google.com", // ✅ add this line
       },
     ],
-  },
-  typescript: {
-    ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,

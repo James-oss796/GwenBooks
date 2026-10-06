@@ -12,12 +12,12 @@ async function requireAdmin() {
   if (!session?.user?.id) return { ok: false as const, status: 401, error: "Unauthorized" };
 
   const row = await db
-    .select({ role: users.role })
+    .select({ role: users.role, status: users.status })
     .from(users)
     .where(eq(users.id, session.user.id))
     .limit(1);
 
-  if (row[0]?.role !== "ADMIN") return { ok: false as const, status: 403, error: "Forbidden" };
+  if (row[0]?.role !== "ADMIN" || row[0]?.status !== "APPROVED") return { ok: false as const, status: 403, error: "Forbidden" };
   return { ok: true as const };
 }
 

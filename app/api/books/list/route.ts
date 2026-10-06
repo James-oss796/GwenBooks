@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/DATABASE/drizzle";
 import { uploaded_books, users } from "@/DATABASE/schema";
 import { eq } from "drizzle-orm";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export async function GET() {
+  const guard = await requireAdmin();
+  if (!guard.ok) return NextResponse.json({ error: "Forbidden" }, { status: guard.status });
   try {
     const books = await db
       .select({

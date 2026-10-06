@@ -1,5 +1,12 @@
 // app/books/search/page.tsx
 import BookSearch from "@/components/BookSearch";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Search books",
+  description: "Search book metadata across legitimate catalogs and check where a title can be read.",
+  alternates: { canonical: "/books/search" },
+};
 
 export default function BooksSearchPage() {
   return (

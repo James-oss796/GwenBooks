@@ -87,23 +87,23 @@
 
   /* Book Cover */
   .book-cover_extra_small {
-    @apply w-[28.95px] h-10;
+    @apply w-[28.95px] aspect-[143/199];
   }
 
   .book-cover_small {
-    @apply w-[55px] h-[76px];
+    @apply w-[55px] aspect-[143/199];
   }
 
   .book-cover_medium {
-    @apply w-[144px] h-[199px];
+    @apply w-[144px] aspect-[143/199];
   }
 
   .book-cover_regular {
-    @apply xs:w-[174px] w-[114px] xs:h-[239px] h-[169px];
+    @apply xs:w-[174px] w-[114px] aspect-[143/199];
   }
 
   .book-cover_wide {
-    @apply xs:w-[296px] w-[256px] xs:h-[404px] h-[354px];
+    @apply xs:w-[296px] w-[256px] aspect-[143/199];
   }
 
   /* Book List */
