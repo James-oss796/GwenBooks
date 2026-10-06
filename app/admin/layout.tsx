@@ -13,14 +13,17 @@ const layout = async ({children}: {children: ReactNode}) => {
 
     const session = await auth();
 
-    if(!session ?.user?.id) redirect("/sign-in");
+    if(!session?.user?.id) redirect("/sign-in");
 
-    const isAdmin = await db
-    .select({isAdmin: users.role})
-    .from(users)
-    .where(eq(users.id, session.user.id))
-    .limit(1)
-    .then((res) =>res[0]?.isAdmin === "ADMIN");
+    const [account] = await db
+      .select({ status: users.status, role: users.role })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1);
+
+    if (account?.status !== "APPROVED") redirect("/sign-in");
+
+    const isAdmin = account.role === "ADMIN";
 
     if(!isAdmin){
       redirect('/');

@@ -68,7 +68,7 @@ export default function AccountRequestsPage() {
       {loading ? (
         <p className="text-gray-500 text-center py-10">Loading…</p>
       ) : pending.length === 0 ? (
-        <p className="text-gray-500 text-center py-10">No pending account requests 🎉</p>
+        <p className="text-gray-500 text-center py-10">No pending account requests.</p>
       ) : (
         <div className="bg-white shadow-md border border-gray-200 rounded-xl overflow-x-auto">
           <table className="w-full border-collapse">

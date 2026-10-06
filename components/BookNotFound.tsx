@@ -1,175 +1,41 @@
-"use client";
-
-import React, { useEffect, useState } from "react";
-import Image from "next/image";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import BookCard from "@/components/BookCard";
-import { Download, Loader2, AlertTriangle } from "lucide-react";
+import Link from "next/link";
+import BookCover from "@/components/BookCover";
 
 interface BookNotFoundProps {
-book: {
-id: string | number;
-title: string;
-author?: string;
-coverUrl?: string;
-  source: "gutenberg" | "internetarchive" | "wikisource";
-downloadLinks?: {
-format: string;
-url: string;
-}[];
-};
+  book: {
+    id: string | number;
+    title: string;
+    author?: string;
+    coverUrl?: string;
+    source: "gutenberg" | "internetarchive" | "wikisource";
+    sourceUrl?: string;
+  };
+}
+
+function sourceSearchUrl(book: BookNotFoundProps["book"]) {
+  if (book.sourceUrl) return book.sourceUrl;
+  const term = encodeURIComponent(book.title);
+  if (book.source === "gutenberg") return `https://www.gutenberg.org/ebooks/search/?query=${term}`;
+  if (book.source === "internetarchive") return `https://archive.org/search?query=${term}`;
+  return `https://en.wikisource.org/wiki/Special:Search?search=${term}`;
 }
 
 export default function BookNotFound({ book }: BookNotFoundProps) {
-const [downloading, setDownloading] = useState(false);
-const [progress, setProgress] = useState(0);
-const [links, setLinks] = useState(book.downloadLinks || []);
-const [loadingLinks, setLoadingLinks] = useState(false);
-
-// --- Auto-attempt to find missing download links ---
-useEffect(() => {
- async function getServerLinks() {
-    if (links.length) return;
-    try {
-      const res = await fetch(`/api/books/${book.id}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.downloadLinks?.length) setLinks(data.downloadLinks);
-    } catch (err) {
-      console.warn("Server-side link fetch failed", err);
-    }
-  }
-  getServerLinks();
-
-async function fetchFallbackLinks() {
-  if (links.length || !book.title) return;
-  setLoadingLinks(true);
-
-  try {
-    const res = await fetch(`/api/downloads?title=${encodeURIComponent(book.title)}`);
-    const data = await res.json();
-    if (data.links?.length) setLinks(data.links);
-  } catch (e) {
-    console.warn("Fallback link search failed", e);
-  } finally {
-    setLoadingLinks(false);
-  }
-}
-
-
-fetchFallbackLinks();
-
-
-}, [book.title, links.length]);
-
-function handleDownload(url: string) {
-  setDownloading(true);
-  window.open(url, "_blank");
-  window.setTimeout(() => setDownloading(false), 1500);
-}
-
-
-return (
-<div className="root-container flex flex-col items-center justify-center text-center py-20 px-6 bg-gradient-to-b from-dark-800 to-dark-950">
-{/* Header Section */}
-<motion.div
-className="flex flex-col items-center"
-initial={{ opacity: 0, y: -30 }}
-animate={{ opacity: 1, y: 0 }}
-transition={{ duration: 0.5 }}
->
-<AlertTriangle className="text-red-500 w-10 h-10 mb-4" />
-<h1 className="text-white text-3xl font-bold">Book Not Found</h1>
-<p className="text-light-200 mt-2 max-w-md">
-We couldn’t open this book for reading. It might be restricted or missing,
-but you can still try downloading it below.
-</p>
-</motion.div>
-
-  {/* Book Card Section */}
-  <motion.div
-    initial={{ opacity: 0, y: 40 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.3 }}
-    className="mt-12 w-full flex justify-center"
-  >
-    <ul className="book-list justify-center">
-      <BookCard
-        id={book.id}
-        title={book.title || "Unknown Title"}
-        author={book.author || "Unknown Author"}
-        coverUrl={
-          book.coverUrl ||
-          `/api/placeholder/cover?title=${encodeURIComponent(book.title)}`
-        }
-        source={book.source}
-      />
-    </ul>
-  </motion.div>
-
-  {/* Download Section */}
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.5 }}
-    className="mt-10 flex flex-col gap-4 items-center w-full max-w-sm"
-  >
-    {loadingLinks ? (
-      <p className="text-light-200 flex items-center gap-2">
-        <Loader2 className="w-4 h-4 animate-spin" /> Searching for available links...
-      </p>
-    ) : links.length ? (
-      links.map((link) => (
-        <Button
-          key={link.format}
-          onClick={() => handleDownload(link.url)}
-          disabled={downloading}
-          loading={downloading}
-          className="bg-primary text-dark-100 hover:bg-primary/90 w-full flex items-center justify-center gap-2 font-bold shadow-md"
-        >
-          {downloading ? "Opening download..." : <><Download className="w-4 h-4" />Download {link.format.toUpperCase()}</>}
-        </Button>
-      ))
-    ) : (
-      <p className="text-light-100 italic">
-  No direct download links available.
-  <br />
-  You can try visiting:
-  <br />
-  <a
-    href={`https://openlibrary.org/search?q=${encodeURIComponent(book.title)}`}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="text-blue-400 hover:underline"
-  >
-    Open Library
-  </a>{" "}
-  or{" "}
-  <a
-    href={`https://archive.org/search.php?query=${encodeURIComponent(book.title)}`}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="text-blue-400 hover:underline"
-  >
-    Internet Archive
-  </a>
-</p>
-
-    )}
-
-    {/* Progress Bar */}
-    {downloading && (
-      <div className="w-full bg-dark-600 rounded-full mt-3 h-2 overflow-hidden">
-        <div
-          className="bg-green-600 h-2 transition-all duration-300 ease-out"
-          style={{ width: `${progress}%` }}
-        />
+  return (
+    <main className="root-container flex min-h-[70vh] flex-col items-center justify-center px-6 py-16 text-center">
+      <div className="flex w-full max-w-xl flex-col items-center rounded-2xl border border-white/10 bg-dark-800 p-8 shadow-lg">
+        <BookCover coverColor="#f4efe6" coverUrl={book.coverUrl || ""} title={book.title} author={book.author} className="mb-6 !h-auto !w-40 aspect-[143/199]" />
+        <h1 className="text-2xl font-bold text-white">This book could not be opened</h1>
+        <p className="mt-3 text-light-200">GwenBooks could not load readable text for this result. We have not found a verified download for it.</p>
+        <div className="mt-6 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+          <a href={sourceSearchUrl(book)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center justify-center rounded-lg bg-primary px-5 font-semibold text-dark-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+            Check {book.source === "gutenberg" ? "Project Gutenberg" : book.source === "internetarchive" ? "Internet Archive" : "Wikisource"}
+          </a>
+          <Link href="/books/search" className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white/20 px-5 font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+            Search other sources
+          </Link>
+        </div>
       </div>
-    )}
-  </motion.div>
-</div>
-
-
-);
+    </main>
+  );
 }

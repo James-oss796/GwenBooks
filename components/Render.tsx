@@ -14,17 +14,19 @@ import {
   FiPlus,
   FiMinus,
   FiX,
-  FiBookOpen,
   FiMenu,
 } from "react-icons/fi";
 import { Download } from "lucide-react";
+import UploadedBookReader from "@/components/UploadedBookReader";
 
 type BookMeta = {
   id: string;
   title: string;
-  source?: "gutenberg" | "internetarchive" | "wikisource";
+  source?: "gutenberg" | "internetarchive" | "wikisource" | "uploaded";
   author?: string;
   coverUrl?: string | null;
+  fileType?: "pdf" | "epub";
+  sourceUrl?: string;
 };
 
 type Chapter = { title: string; page: number };
@@ -33,16 +35,14 @@ type Props = {
   book: BookMeta;
   pages: string[];
   chapters?: Chapter[];
+  uploadedFile?: { type: "pdf" | "epub"; url: string };
 };
 
-export default function Reader({ book, pages, chapters = [] }: Props) {
+export default function Reader({ book, pages, chapters = [], uploadedFile }: Props) {
   const [pageIndex, setPageIndex] = useState(0);
   const [fontSize, setFontSize] = useState(18);
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [isFavorite, setIsFavorite] = useState(false);
-  const [showSummaryModal, setShowSummaryModal] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
-  const [loadingSummary, setLoadingSummary] = useState(false);
   const [savingFavorite, setSavingFavorite] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -63,13 +63,19 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
   const localKeyFont = `read:${book.id}:font`;
   const localKeyTheme = `read:${book.id}:theme`;
   const localKeyFav = `read:${book.id}:fav`;
+  const savedBookId = book.id.includes(":") ? book.id : `${book.source || "gutenberg"}:${book.id}`;
 
   useEffect(() => {
+    let active = true;
     const p = localStorage.getItem(localKeyProgress);
     const f = localStorage.getItem(localKeyFont);
     const t = localStorage.getItem(localKeyTheme);
     const fav = localStorage.getItem(localKeyFav);
 
+    if (uploadedFile) {
+      setProgressLoaded(true);
+      return () => { active = false; };
+    }
     if (p) {
       const savedPage = Number(p);
       if (Number.isFinite(savedPage)) setPageIndex(Math.max(1, Math.min(savedPage + 1, pages.length)));
@@ -80,19 +86,34 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
     }
     if (t === "dark") setTheme("dark");
     if (fav === "true") setIsFavorite(true);
-    setProgressLoaded(true);
-  }, [book.id]);
+    async function restoreServerProgress() {
+      try {
+        const response = await fetch(`/api/progress/save?bookId=${encodeURIComponent(savedBookId)}`, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        const saved = data.progress?.pageIndex;
+        if (active && Number.isSafeInteger(saved) && saved >= 0) {
+          localStorage.setItem(localKeyProgress, String(saved));
+          setPageIndex(Math.max(1, Math.min(saved + 1, pages.length)));
+        }
+      } catch {
+        // Device storage remains available if account progress cannot be loaded.
+      } finally { if (active) setProgressLoaded(true); }
+    }
+    void restoreServerProgress();
+    return () => { active = false; };
+  }, [book.id, pages.length, uploadedFile, savedBookId, localKeyProgress]);
 
   useEffect(() => {
-    if (!progressLoaded) return;
+    if (!progressLoaded || uploadedFile) return;
     const savedPage = Math.max(0, pageIndex - 1);
     localStorage.setItem(localKeyProgress, String(savedPage));
     fetch("/api/progress/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookId: book.id, pageIndex: savedPage }),
+      body: JSON.stringify({ bookId: savedBookId, pageIndex: savedPage, title: book.title, author: book.author, coverUrl: book.coverUrl }),
     }).catch(() => {});
-  }, [pageIndex, book.id, progressLoaded]);
+  }, [pageIndex, savedBookId, progressLoaded, uploadedFile, book.title, book.author, book.coverUrl]);
 
   useEffect(() => localStorage.setItem(localKeyFont, String(fontSize)), [fontSize]);
 
@@ -168,7 +189,7 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          bookId: book.id,
+          bookId: savedBookId,
           title: book.title,
           author: book.author,
           coverUrl: book.coverUrl,
@@ -201,25 +222,6 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
     } catch {
     } finally {
       setSharing(false);
-    }
-  };
-
-  const openSummary = async () => {
-    setShowSummaryModal(true);
-    setLoadingSummary(true);
-    setSummary(null);
-    try {
-      const res = await fetch("/api/ai/summarize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: pages[Math.max(0, pageIndex - 1)] || "" }),
-      });
-      const data = await res.json();
-      setSummary(data.summary ?? "No summary available.");
-    } catch {
-      setSummary("Failed to summarize. Try again later.");
-    } finally {
-      setLoadingSummary(false);
     }
   };
 
@@ -324,6 +326,10 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
     setCurrentChapter(current);
   }, [pageIndex, chapters]);
 
+  if (uploadedFile && book.source === "uploaded") {
+    return <UploadedBookReader book={{ id: book.id, title: book.title, author: book.author, coverUrl: book.coverUrl || undefined, fileType: uploadedFile.type }} fileUrl={uploadedFile.url} />;
+  }
+
   return (
     <div className={`min-h-screen transition-colors ${theme === "dark" ? "bg-[#0a0a0a] text-gray-100" : "bg-[#fff7e8] text-gray-900"}`}>
       {/* Progress Bar */}
@@ -346,6 +352,7 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
           <div className="mt-2">
             <h1 className="text-2xl font-semibold">{book.title}</h1>
             <p className="text-sm text-gray-500">{book.author}</p>
+            {book.sourceUrl && <a href={book.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-sm text-blue-700 underline underline-offset-2">Source: {book.source === "wikisource" ? "Wikisource" : book.source === "internetarchive" ? "Internet Archive" : "Book provider"}</a>}
           </div>
         </div>
 
@@ -368,9 +375,6 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
           </button>
           <button title="Favorite" onClick={toggleFavorite} disabled={savingFavorite} className={`p-2 rounded disabled:opacity-60 ${isFavorite ? "bg-amber-400 text-black" : "bg-black/10 hover:bg-black/20"}`}>
             <FiHeart />
-          </button>
-          <button title="Summarize current page" onClick={openSummary} disabled={loadingSummary} className="p-2 rounded bg-black/10 hover:bg-black/20 disabled:opacity-60">
-            AI
           </button>
         </div>
       </div>
@@ -458,7 +462,6 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
     {showMobileMenu && (
       <>
         {[
-          { onClick: openSummary, icon: <FiBookOpen />, title: "Summarize current page", disabled: loadingSummary },
           { onClick: handleShare, icon: <FiShare2 />, title: "Share", disabled: sharing },
           { onClick: downloadAsPdf, icon: <Download />, title: "Download book as PDF", disabled: downloadingPdf },
           {
@@ -515,20 +518,6 @@ export default function Reader({ book, pages, chapters = [] }: Props) {
   </AnimatePresence>
 </div>
 
-      {/* Summary Modal */}
-      <AnimatePresence>
-        {showSummaryModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <motion.div initial={{ y: 50 }} animate={{ y: 0 }} exit={{ y: 50 }} className="max-w-2xl w-full bg-white dark:bg-gray-900 rounded-xl p-6 relative">
-              <button type="button" onClick={() => setShowSummaryModal(false)} className="absolute top-4 right-4 p-2 rounded bg-black/10" aria-label="Close summary modal" title="Close">
-                <FiX aria-hidden="true" />
-              </button>
-              <h3 className="text-xl font-semibold mb-3">Summary — current page</h3>
-              {loadingSummary ? <div>Summarizing…</div> : <div className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{summary}</div>}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

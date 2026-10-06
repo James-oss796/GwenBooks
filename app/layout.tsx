@@ -5,6 +5,7 @@ import localFont from "next/font/local";
 import { ReactNode } from "react";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/auth";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
 const ibmPlexSans = localFont({
   src: [
@@ -43,9 +44,31 @@ const bebasNeue = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "GwenBooks",
-  description:
-    "GwenBooks is a book borrowing novels and library management solution.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://gwen-books.vercel.app"),
+  title: { default: "GwenBooks — Discover and read books", template: "%s | GwenBooks" },
+  description: "Discover books across legitimate catalogs, check source availability, and read supported public-domain or openly licensed texts in GwenBooks.",
+  alternates: { canonical: "/" },
+  applicationName: "GwenBooks",
+  appleWebApp: { capable: true, title: "GwenBooks", statusBarStyle: "black-translucent" },
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/icons/logo.svg", type: "image/svg+xml" }],
+    shortcut: ["/icons/logo.svg"],
+    apple: [{ url: "/icons/icon-192.png", type: "image/png" }],
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "GwenBooks",
+    title: "GwenBooks — Discover and read books",
+    description: "Discover books across legitimate catalogs and read supported open works.",
+  },
+  twitter: {
+    card: "summary",
+    title: "GwenBooks — Discover and read books",
+    description: "Discover books across legitimate catalogs and read supported open works.",
+  },
+  robots: { index: true, follow: true },
 };
 
 const RootLayout = async ({
@@ -63,6 +86,7 @@ const RootLayout = async ({
       >
         <SessionProvider session={session}>
           {children}
+          <ServiceWorkerRegistration />
           <Toaster />
         </SessionProvider>
       </body>

@@ -10,9 +10,12 @@ export async function getDominantColor(imageUrl: string): Promise<string> {
 
     img.onload = () => {
       try {
-        const colorThief = new ColorThief();
+        const BrowserColorThief = ColorThief as unknown as new () => {
+          getColor: (image: HTMLImageElement) => [number, number, number] | null;
+        };
+        const colorThief = new BrowserColorThief();
         const color = colorThief.getColor(img); // [r, g, b]
-        resolve(`rgb(${color[0]}, ${color[1]}, ${color[2]})`);
+        resolve(color ? `rgb(${color[0]}, ${color[1]}, ${color[2]})` : "#444");
       } catch {
         resolve("#444"); // fallback color
       }

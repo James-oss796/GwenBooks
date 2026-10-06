@@ -1,24 +1,30 @@
 // lib/fetchBooks.ts
 import { Book } from "@/types";
+import { normalizeQuery, providers, rankAndDeduplicate, searchProvider } from "@/lib/books/providers";
+import { isOpenCommercialReuseLicense } from "@/lib/books/openLicense";
 
 // Simple in-memory cache
-const cache = new Map<string, { data: Book[]; timestamp: number }>();
+const cache = new Map<string, { data: Book[]; providerStatus: Record<string, "ok" | "empty" | "error">; timestamp: number }>();
 const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 const archiveTextCache = new Map<string, Book | null>();
 
-async function fetchProviderJson(url: string, init: RequestInit = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 7000);
-  try {
-    const response = await fetch(url, { ...init, signal: controller.signal });
-    if (!response.ok) throw new Error(`Provider returned ${response.status}`);
-    return await response.json();
-  } finally {
-    clearTimeout(timeout);
+async function fetchProviderJson<T = unknown>(url: string, init: RequestInit = {}): Promise<T> {
+  let response: Response;
+  for (let attempt = 0; ; attempt++) {
+    response = await fetch(url, { ...init, signal: AbortSignal.timeout(10000) });
+    if (response.status !== 429 || attempt >= 2) break;
+    const retryAfter = Number(response.headers.get("retry-after"));
+    await new Promise((resolve) => setTimeout(resolve, Number.isFinite(retryAfter) ? Math.min(1500, retryAfter * 1000) : 600 * (attempt + 1)));
   }
+  if (!response.ok) throw new Error(`Provider returned ${response.status}`);
+  return await response.json() as T;
 }
 
-  type ReaderOverrides = Partial<Pick<Book, "title" | "author" | "coverUrl" | "readUrl" | "downloadId">>;
+type ReaderOverrides = Partial<Pick<Book, "title" | "author" | "coverUrl" | "readUrl" | "downloadId" | "downloadUrl">>;
+type ArchiveMetadata = { metadata?: Record<string, unknown>; files?: Array<{ name?: string }> };
+type ArchiveRecord = { identifier?: string; title?: string; creator?: string | string[] };
+type GutenbergRecord = { id: number; title: string; authors?: Array<{ name?: string }>; formats?: Record<string, string> };
+type WikisourceRecord = { query?: { pages?: Record<string, { pageid?: number; title?: string; extract?: string; links?: Array<{ title?: string }> }> } };
 
   function isTrustedTextUrl(source: string, rawUrl?: string) {
     if (!rawUrl) return false;
@@ -34,45 +40,34 @@ async function fetchProviderJson(url: string, init: RequestInit = {}) {
     }
   }
 
-function getCached(query: string): Book[] | null {
-  const cached = cache.get(query.toLowerCase());
+function getCached(query: string) {
+  const cached = cache.get(query);
   if (!cached) return null;
-  const isExpired = Date.now() - cached.timestamp > CACHE_TTL;
+  const ttl = Object.values(cached.providerStatus).some((status) => status === "error") ? 20_000 : CACHE_TTL;
+  const isExpired = Date.now() - cached.timestamp > ttl;
   if (isExpired) {
-    cache.delete(query.toLowerCase());
+    cache.delete(query);
     return null;
   }
-  return cached.data;
+  return cached;
 }
 
-  function matchesBookQuery(book: Book, query: string) {
-    const ignoredTerms = new Set(["the", "and", "for", "with", "from", "into", "book", "books"]);
-    const terms = query.toLowerCase().match(/[a-z0-9]+/g)?.filter((term) => term.length > 2 && !ignoredTerms.has(term)) || [];
-    if (!terms.length) return true;
-    const searchable = `${book.title} ${book.author || ""}`.toLowerCase();
-    return terms.every((term) => searchable.includes(term));
-  }
-
-async function getOpenArchiveBook(record: any, firstPublishYear?: number): Promise<Book | null> {
+async function getOpenArchiveBook(record: ArchiveRecord): Promise<Book | null> {
   const identifier = String(record.identifier || "");
   if (!identifier) return null;
   if (archiveTextCache.has(identifier)) return archiveTextCache.get(identifier) || null;
 
   try {
-    const metadata = await fetchProviderJson(`https://archive.org/metadata/${encodeURIComponent(identifier)}`);
+    const metadata = await fetchProviderJson<ArchiveMetadata>(`https://archive.org/metadata/${encodeURIComponent(identifier)}`);
     const item = metadata.metadata || {};
     const license = String(item.licenseurl || "");
-    const rights = String(item.rights || "");
-    const publicationYear = firstPublishYear || Number(String(item.date || item.year || "").match(/\b(1[0-9]{3}|20[0-2][0-9])\b/)?.[0]);
-    const isPublicDomain = Number.isFinite(publicationYear) && publicationYear > 0 && publicationYear <= 1930;
-    const isOpenLicensed = /creativecommons\.org\/(?:publicdomain|licenses\/by(?:-sa)?\/)/i.test(license) || /public domain/i.test(rights);
-    if (item["access-restricted-item"] === true || (!isPublicDomain && !isOpenLicensed)) {
+    if (item["access-restricted-item"] === true || !isOpenCommercialReuseLicense(license)) {
       archiveTextCache.set(identifier, null);
       return null;
     }
 
-    const textFile = (metadata.files || []).find((file: any) =>
-      /\.txt$/i.test(file.name || "") && !/(?:meta|marc|files\.txt|contents)/i.test(file.name)
+    const textFile = (metadata.files || []).find((file) =>
+      /\.txt$/i.test(file.name || "") && !/(?:meta|marc|files\.txt|contents)/i.test(file.name || "")
     );
     if (!textFile?.name) {
       archiveTextCache.set(identifier, null);
@@ -80,14 +75,20 @@ async function getOpenArchiveBook(record: any, firstPublishYear?: number): Promi
     }
 
     const encodedPath = String(textFile.name).split("/").map(encodeURIComponent).join("/");
+    const itemTitle = typeof item.title === "string" ? item.title : undefined;
+    const itemCreator = typeof item.creator === "string" ? item.creator : undefined;
     const book: Book = {
       id: `internetarchive:${identifier}`,
-      title: record.title || item.title || "Untitled",
-      author: Array.isArray(record.creator) ? record.creator.join(", ") : record.creator || item.creator || "Unknown",
+      title: record.title || itemTitle || "Untitled",
+      author: Array.isArray(record.creator) ? record.creator.join(", ") : record.creator || itemCreator || "Unknown",
       coverUrl: `https://archive.org/services/img/${encodeURIComponent(identifier)}`,
       readUrl: `https://archive.org/download/${encodeURIComponent(identifier)}/${encodedPath}`,
-      downloadId: identifier,
+      downloadId: (metadata.files || []).some((file) => /\.pdf$/i.test(file.name || "")) ? identifier : undefined,
       source: "internetarchive",
+      sourceId: identifier,
+      sourceUrl: `https://archive.org/details/${encodeURIComponent(identifier)}`,
+      availability: "readable_in_app",
+      formats: (metadata.files || []).map((file) => file.name?.split(".").pop()?.toLowerCase()).filter((value): value is string => !!value),
       coverColor: "#fff",
       isFullyReadable: true,
     };
@@ -98,87 +99,27 @@ async function getOpenArchiveBook(record: any, firstPublishYear?: number): Promi
   }
 }
 
-// Search only sources that can provide text to the in-app reader.
+export async function searchBooks(query: string) {
+  const normalized = normalizeQuery(query);
+  if (normalized.length < 2 || normalized.length > 120) return { results: [] as Book[], providerStatus: {} };
+  const cached = getCached(normalized);
+  if (cached) return { results: cached.data, providerStatus: cached.providerStatus };
+  const activeProviders = providers.filter((provider) => provider.name !== "Google Books" || !!process.env.GOOGLE_BOOKS_API_KEY);
+  const responses = await Promise.all(activeProviders.map((provider) => searchProvider(provider, query.trim())));
+  const providerStatus = Object.fromEntries(activeProviders.map((provider, index) => [provider.name, responses[index].status]));
+  const results = rankAndDeduplicate(responses.flatMap((response) => response.books), query);
+  cache.set(normalized, { data: results, providerStatus, timestamp: Date.now() });
+  return { results, providerStatus };
+}
+
 export async function fetchBooks(query: string): Promise<Book[]> {
-  if (!query?.trim()) return [];
-
-  const normalizedQuery = query.trim().toLowerCase();
-  const cached = getCached(normalizedQuery);
-  if (cached) return cached;
-
-  const encodedQuery = encodeURIComponent(query.trim());
-  const providers = await Promise.all([
-    fetchProviderJson(`https://gutendex.com/books?search=${encodedQuery}`)
-      .then((data) => (data.results || []).filter((book: any) => {
-        const formats = book.formats || {};
-        return formats["text/html; charset=utf-8"] || formats["text/html"] ||
-          formats["text/plain; charset=utf-8"] || formats["text/plain"];
-      }).slice(0, 8).map((book: any): Book => {
-        const formats = book.formats || {};
-        return {
-          id: `gutenberg:${book.id}`,
-          title: book.title || "Untitled",
-          author: book.authors?.[0]?.name || "Unknown",
-          coverUrl: formats["image/jpeg"] || formats["image/jpg"] || "/placeholder-book.jpg",
-          readUrl: formats["text/html; charset=utf-8"] || formats["text/html"] || formats["text/plain; charset=utf-8"] || formats["text/plain"],
-          downloadUrl: formats["application/pdf"],
-          source: "gutenberg",
-          coverColor: "#fff",
-          isFullyReadable: true,
-        };
-      })).catch((error) => { console.warn("[Gutenberg] Search unavailable:", error); return []; }),
-    fetchProviderJson(`https://openlibrary.org/search.json?q=${encodedQuery}&limit=20&has_fulltext=true`)
-      .then(async (data) => Promise.all((data.docs || [])
-        .filter((book: any) => book.ia?.length && book.first_publish_year && book.first_publish_year <= 1930)
-        .slice(0, 8).map(async (book: any) => {
-          // Map OpenLibrary books to the Book type
-          const archiveId = book.ia[0];
-          return getOpenArchiveBook({ identifier: archiveId, title: book.title, creator: book.author_name?.[0] }, book.first_publish_year);
-        })).then((books) => books.filter((book): book is Book => book !== null)))
-      .catch((error) => { console.warn("[OpenLibrary] Search unavailable:", error); return []; }),
-    fetchProviderJson(`https://en.wikisource.org/w/api.php?action=query&list=search&srnamespace=0&srlimit=8&format=json&srsearch=${encodedQuery}`)
-      .then((data) => (data.query?.search || []).map((page: any): Book => ({
-        id: `wikisource:${page.pageid}`,
-        title: page.title,
-        author: "Wikisource",
-        coverUrl: "/placeholder-book.jpg",
-        readUrl: `https://en.wikisource.org/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&pageids=${page.pageid}&format=json`,
-        source: "wikisource",
-        coverColor: "#fff",
-        isFullyReadable: true,
-      })))
-      .catch((error) => { console.warn("[Wikisource] Search unavailable:", error); return []; }),
-  ]);
-
-  const sourceRank: Record<string, number> = {
-    gutenberg: 0,
-    wikisource: 1,
-    internetarchive: 2,
-  };
-  const results = providers.flat()
-    .filter((book) => book.isFullyReadable && book.readUrl && matchesBookQuery(book, query))
-    .sort((a, b) => (sourceRank[a.source || ""] ?? 9) - (sourceRank[b.source || ""] ?? 9));
-  const byTitle = new Map<string, Book>();
-  for (const book of results) {
-    const normalizedTitle = book.title
-      .toLowerCase()
-      .replace(/\b(?:18|19|20)\d{2}\b/g, "")
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
-    const existing = byTitle.get(normalizedTitle);
-    if (!existing || (sourceRank[book.source || ""] ?? 9) < (sourceRank[existing.source || ""] ?? 9)) {
-      byTitle.set(normalizedTitle, book);
-    }
-  }
-  const uniqueResults = Array.from(byTitle.values());
-  cache.set(normalizedQuery, { data: uniqueResults, timestamp: Date.now() });
-  return uniqueResults;
+  return (await searchBooks(query)).results;
 }
 
 // =====================================
 // 🔍 Fetch Book By Source (For Reader)
 // =====================================
-export async function fetchBookBySource(rawId: string, overrides: ReaderOverrides = {}) {
+export async function fetchBookBySource(rawId: string, overrides: ReaderOverrides = {}): Promise<Book | null> {
   if (!rawId) return null;
 
   const decoded = decodeURIComponent(rawId);
@@ -189,42 +130,20 @@ export async function fetchBookBySource(rawId: string, overrides: ReaderOverride
       // 🏛️ Gutenberg - Only source that works in-app
       case "gutenberg": {
         const cleanId = idPart.replace(/\D/g, "");
-          if (isTrustedTextUrl(source, overrides.readUrl)) {
-            return {
-              id: cleanId,
-              title: overrides.title || "Untitled",
-              author: overrides.author || "Unknown",
-              coverUrl: overrides.coverUrl || "/placeholder-book.jpg",
-              readUrl: overrides.readUrl,
-              source: "gutenberg",
-              isFullyReadable: true,
-            };
-          }
-        const res = await fetch(`https://gutendex.com/books/${cleanId}`);
-        if (!res.ok) return null;
-
-        const data = await res.json();
+        const data = await fetchProviderJson<GutenbergRecord>(`https://gutendex.com/books/${cleanId}`);
         const formats = data.formats ?? {};
-
-        // Get the best readable format
-        const readUrl =
-          formats["text/html; charset=utf-8"] ||
-          formats["text/html"] ||
-          formats["text/plain; charset=utf-8"] ||
-          formats["text/plain"] ||
-          null;
 
         return {
           id: String(data.id),
           title: data.title,
           author: data.authors?.[0]?.name || "Unknown",
           coverUrl:
-            data.formats?.["image/jpeg"] ||
-            data.formats?.["image/jpg"] ||
-            "/placeholder-book.jpg",
-          readUrl,
+            "",
+          coverColor: "#ffffff",
+          readUrl: `https://www.gutenberg.org/ebooks/${cleanId}`,
           source: "gutenberg",
-          isFullyReadable: true,
+          downloadUrl: formats["application/pdf"] || overrides.downloadUrl,
+          isFullyReadable: false,
         };
       }
 
@@ -240,32 +159,36 @@ export async function fetchBookBySource(rawId: string, overrides: ReaderOverride
       }
 
       case "wikisource": {
-        const textUrl = isTrustedTextUrl(source, overrides.readUrl)
-          ? overrides.readUrl!
-          : `https://en.wikisource.org/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&pageids=${encodeURIComponent(idPart)}&format=json`;
-        const response = await fetchProviderJson(textUrl);
+        const pageUrl = `https://en.wikisource.org/w/api.php?action=query&prop=extracts%7Clinks&explaintext=1&exsectionformat=plain&plnamespace=0&pllimit=max&pageids=${encodeURIComponent(idPart)}&format=json`;
+        const response = await fetchProviderJson<WikisourceRecord>(pageUrl);
         const page = response.query?.pages?.[idPart];
-        const textContent = page?.extract;
-        if (!textContent?.trim()) return null;
-        return {
-          id: idPart,
-          title: page.title || "Untitled",
-          author: "Wikisource",
-          coverUrl: "/placeholder-book.jpg",
-          source: "wikisource",
-          textContent,
-          isFullyReadable: true,
+        if (!page?.title) return null;
+        const textContent = page.extract;
+        if (textContent?.trim() && textContent.trim().split(/\s+/).length >= 10000) return {
+          id: idPart, title: page.title, author: "Wikisource", coverUrl: "", coverColor: "#ffffff", source: "wikisource",
+          sourceUrl: `https://en.wikisource.org/?curid=${idPart}`, textContent, isFullyReadable: true,
         };
-      }
-
-      case "internetarchive": {
-        const archiveBook = await getOpenArchiveBook({ identifier: idPart });
-        if (!archiveBook?.readUrl) return null;
-        const textResponse = await fetch(archiveBook.readUrl);
-        if (!textResponse.ok) return null;
-        const textContent = await textResponse.text();
-        if (!textContent.trim()) return null;
-        return { ...archiveBook, textContent, isFullyReadable: true };
+        const chapters = (page.links || []).map((link) => link.title).filter((title): title is string => !!title && title.startsWith(`${page.title}/Chapter`)).sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+        if (chapters.length >= 10) {
+          const batches: string[][] = [];
+          for (let start = 0; start < chapters.length; start += 30) batches.push(chapters.slice(start, start + 30));
+          const chapterPages = await Promise.all(batches.map(async (titles) => {
+            const extracts = await fetchProviderJson<WikisourceRecord>(`https://en.wikisource.org/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&titles=${encodeURIComponent(titles.join("|"))}&format=json`);
+            const byTitle = new Map(Object.values(extracts.query?.pages || {}).map((chapter) => [chapter.title, chapter]));
+            return titles.map((title) => {
+              const chapter = byTitle.get(title);
+              return chapter?.extract?.trim() ? { id: String(chapter.pageid || title), title: title.replace(`${page.title}/`, ""), content: chapter.extract } : null;
+            }).filter((chapter): chapter is { id: string; title: string; content: string } => chapter !== null);
+          }));
+          const fullChapters = batches.flatMap((_, index) => chapterPages[index]).filter(Boolean);
+          if (fullChapters.length >= 10) return {
+            id: idPart, title: page.title, author: "Wikisource", coverUrl: "", coverColor: "#ffffff", source: "wikisource",
+            sourceUrl: `https://en.wikisource.org/?curid=${idPart}`, chapters: fullChapters, isFullyReadable: true,
+          };
+          return null;
+        }
+        if (!textContent?.trim() || textContent.trim().split(/\s+/).length < 10000) return null;
+        return { id: idPart, title: page.title, author: "Wikisource", coverUrl: "", coverColor: "#ffffff", source: "wikisource", sourceUrl: `https://en.wikisource.org/?curid=${idPart}`, textContent, isFullyReadable: true };
       }
 
       default:

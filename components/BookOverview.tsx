@@ -59,9 +59,9 @@ const BookOverview = ({
 
       <div className="relative flex flex-1 justify-center">
         <div className="relative">
-          <BookCover variant="wide" className="z-10" coverColor={coverColor} coverUrl={coverUrl} />
+          <BookCover variant="wide" className="z-10" coverColor={coverColor} coverUrl={coverUrl || ""} title={title} author={author} />
           <div className="absolute left-16 top-10 rotate-12 opacity-40 max-sm:hidden">
-            <BookCover variant="wide" className="z-10" coverColor={coverColor} coverUrl={coverUrl} />
+            <BookCover variant="wide" className="z-10" coverColor={coverColor} coverUrl={coverUrl || ""} title={title} author={author} />
           </div>
         </div>
       </div>

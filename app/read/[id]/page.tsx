@@ -1,10 +1,18 @@
 import React from "react";
 import Reader from "@/components/Render"; // ✅ Use your actual Reader component filename
-import Image from "next/image";
 import Link from "next/link";
+import BookCover from "@/components/BookCover";
 import { fetchBookBySource } from "@/lib/fetchBooks";
-import { fetchFallbackPDF } from "@/lib/fetchFallbackPDF";
 import BookNotFound from "@/components/BookNotFound"; // ✅ Your styled not-found page
+import type { Book } from "@/types";
+import { getUploadedBookForViewer } from "@/lib/uploadedBookAccess";
+import { notFound, redirect } from "next/navigation";
+
+const sourceNames: Partial<Record<NonNullable<Book["source"]>, string>> = {
+  gutenberg: "Project Gutenberg",
+  internetarchive: "Internet Archive",
+  wikisource: "Wikisource",
+};
 
 type ReadPageProps = {
   params: { id: string };
@@ -16,6 +24,8 @@ type ReadPageProps = {
     downloadId?: string;
   };
 };
+
+type ReaderPage = { title: string; page: number };
 
 function chunkTextIntoPages(text: string, approxCharsPerPage = 4000) {
   const paragraphs = text
@@ -76,6 +86,28 @@ function normalizeBookText(text: string) {
 
 export default async function Page({ params, searchParams }: ReadPageProps) {
   const decodedId = decodeURIComponent(params.id);
+  const uploadedId = decodedId.match(/^uploaded:(\d+)$/);
+  if (uploadedId) {
+    const result = await getUploadedBookForViewer(Number(uploadedId[1]));
+    if ("error" in result) {
+      if (result.error === "unauthenticated") redirect(`/sign-in?callbackUrl=${encodeURIComponent(`/read/${encodeURIComponent(decodedId)}`)}`);
+      notFound();
+    }
+    return (
+      <Reader
+        book={{
+          id: decodedId,
+          title: result.book.title,
+          author: result.book.author || "Unknown",
+          source: "uploaded",
+          coverUrl: result.book.coverUrl || "",
+          fileType: result.book.fileType === "epub" ? "epub" : "pdf",
+        }}
+        pages={[]}
+        uploadedFile={{ type: result.book.fileType === "epub" ? "epub" : "pdf", url: `/api/user/books/${result.book.id}/file` }}
+      />
+    );
+  }
   const book = await fetchBookBySource(decodedId, {
     title: searchParams?.title,
     author: searchParams?.author,
@@ -92,68 +124,52 @@ book={{
 id: decodedId,
 title: "Unknown Book",
 author: "Unknown Author",
-coverUrl: "/placeholder-book.jpg",
+coverUrl: "",
 source: "gutenberg",
-downloadLinks: [],
 }}
 />
 );
 }
 
   if (!book.isFullyReadable || !["gutenberg", "internetarchive", "wikisource"].includes(book.source || "")) {
-    const pdfUrl = book.downloadUrl || await fetchFallbackPDF(book.id, book.source);
-
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 text-gray-900 p-6">
         <div className="max-w-md w-full rounded-2xl bg-white shadow-2xl border border-gray-100 p-8 text-center">
-          <div className="relative mx-auto w-48 h-64 mb-6 rounded-lg overflow-hidden shadow-lg">
-            <Image
-              src={book.coverUrl || "/placeholder-book.jpg"}
-              alt={book.title}
-              fill
-              className="object-cover"
-            />
-          </div>
+          <BookCover coverColor={book.coverColor || "#f4efe6"} coverUrl={book.coverUrl || ""} title={book.title} author={book.author} className="mx-auto mb-6 !h-auto !w-48 aspect-[143/199] shadow-lg" />
 
           <h1 className="text-2xl font-bold mb-2">{book.title}</h1>
           <p className="text-gray-600 mb-6">by {book.author || "Unknown"}</p>
 
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
             <p className="text-sm text-gray-700 leading-relaxed">
-              📖 This title isn’t fully available for online reading.  
+              This title isn’t available in GwenBooks’ reader. Use the source link below to check reading options.
               You can download it or view it directly on{" "}
               <span className="font-semibold">
-                {sourceNames[book.source] || "the source site"}
+                {sourceNames[book.source || "gutenberg"] || "the source site"}
               </span>.
             </p>
           </div>
 
-          {pdfUrl ? (
+          {book.downloadId ? (
             <Link
-              href={`/api/books/download?url=${encodeURIComponent(pdfUrl)}`}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={`/api/books/download?archiveId=${encodeURIComponent(book.downloadId)}`}
               className="block w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3.5 rounded-lg transition-all shadow-md hover:shadow-lg mb-3 text-center"
             >
-              📥 Download PDF
+              Download PDF
             </Link>
-          ) : (
-            <div className="text-sm text-gray-500 mb-4">
-              PDF download unavailable for this title.
-            </div>
-          )}
+          ) : null}
 
-          <Link
-            href={book.readUrl || "#"}
+          <a
+            href={book.sourceUrl || book.readUrl || "https://www.gutenberg.org/"}
             target="_blank"
             rel="noopener noreferrer"
             className="block w-full bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white font-semibold px-6 py-3.5 rounded-lg transition-all shadow-md hover:shadow-lg text-center"
           >
-            🌐 Open on {sourceNames[book.source] || "Source"}
-          </Link>
+            Read on {sourceNames[book.source || "gutenberg"] || "Source"}
+          </a>
 
           <p className="text-xs text-gray-500 mt-6 text-center leading-relaxed">
-            ✅ Redirecting to verified, legal sources only.
+            Source availability is shown as provided by the catalog.
           </p>
         </div>
       </div>
@@ -161,11 +177,11 @@ downloadLinks: [],
   }
 
   // ✅ Gutenberg book: load text
-  let raw: string;
+  let raw: string = "";
   try {
     if (book.textContent) {
       raw = book.textContent;
-    } else {
+    } else if (!book.chapters?.length) {
       if (!book.readUrl) throw new Error("No readable text URL is available");
       const textRes = await fetch(book.readUrl);
       if (!textRes.ok) throw new Error(`Failed to fetch: ${textRes.status}`);
@@ -181,7 +197,6 @@ title: book.title,
 author: book.author,
 coverUrl: book.coverUrl,
 source: (book.source?.toLowerCase() || "gutenberg") as "gutenberg" | "internetarchive" | "wikisource",
-downloadLinks: [],
 }}
 />
     );
@@ -207,7 +222,18 @@ downloadLinks: [],
       .trim();
   }
 
-  const pages = chunkTextIntoPages(normalizeBookText(raw), 3500);
+  const pages: string[] = [];
+  const chapters: ReaderPage[] = [];
+  if (book.chapters?.length) {
+    for (const chapter of book.chapters) {
+      const chapterPages = chunkTextIntoPages(normalizeBookText(chapter.content), 3500);
+      if (!chapterPages.length) continue;
+      chapters.push({ title: chapter.title, page: pages.length });
+      pages.push(...chapterPages);
+    }
+  } else {
+    pages.push(...chunkTextIntoPages(normalizeBookText(raw), 3500));
+  }
 
   if (pages.length === 0) {
     return (
@@ -218,7 +244,6 @@ title: book.title,
 author: book.author,
 coverUrl: book.coverUrl,
 source: (book.source?.toLowerCase() || "gutenberg") as "gutenberg" | "internetarchive" | "wikisource",
-downloadLinks: [],
 }}
 />
     );
@@ -230,11 +255,13 @@ downloadLinks: [],
       book={{
         id: book.id,
         title: book.title,
-        source: book.source,
+        source: book.source as "gutenberg" | "internetarchive" | "wikisource" | undefined,
         author: book.author,
         coverUrl: book.coverUrl,
+        sourceUrl: book.sourceUrl,
       }}
       pages={pages}
+      chapters={chapters}
     />
   );
 }

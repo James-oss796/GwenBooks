@@ -8,7 +8,9 @@ import { Button } from "./ui/button";
 import { ButtonSpinner } from "./ui/button";
 import { FastAverageColor } from "fast-average-color";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Download } from "lucide-react";
+import type { ReactNode } from "react";
 
 interface BookCardProps {
 id: number | string;
@@ -19,10 +21,14 @@ coverUrl?: string | null;
   readUrl?: string;
 coverColor?: string;
 isLoanedBook?: boolean;
-  source?: "gutenberg" | "internetarchive" | "wikisource";
+  source?: "gutenberg" | "internetarchive" | "wikisource" | "uploaded" | "openlibrary" | "googlebooks";
   downloadUrl?: string;
   downloadId?: string;
   priority?: boolean;
+  sources?: Array<{ name: string; url?: string; availability: "readable_in_app" | "external_preview" | "source_only" }>;
+  favoriteAction?: ReactNode;
+  isFullyReadable?: boolean;
+  sourceUrl?: string;
 }
 
 const BookCard = ({
@@ -36,6 +42,10 @@ readUrl,
   downloadUrl,
   downloadId,
   priority = false,
+  sources,
+  favoriteAction,
+  isFullyReadable,
+  sourceUrl,
 coverColor,
 isLoanedBook = false,
 }: BookCardProps) => {
@@ -43,10 +53,7 @@ const [avgColor, setAvgColor] = useState<string>(coverColor || "#fff");
 const [isLoading, setIsLoading] = useState(false);
 const router = useRouter();
 
-const fallbackCover =
-coverUrl && coverUrl.trim() !== ""
-? coverUrl
-: `https://covers.openlibrary.org/b/id/${id}-L.jpg`;
+const fallbackCover = coverUrl?.trim() || "";
 
 
 const handleCoverLoad = async (image: HTMLImageElement) => {
@@ -61,6 +68,10 @@ console.warn("Failed to extract cover color:", err);
 
 const handleClick = (e: React.MouseEvent) => {
 e.preventDefault();
+  if (isFullyReadable !== true && sourceUrl) {
+    window.location.assign(sourceUrl);
+    return;
+  }
   setIsLoading(true);
   const safeSource = (source || "gutenberg").toLowerCase();
 
@@ -94,11 +105,13 @@ return (
     onClick={handleClick}
         disabled={isLoading}
     className="group relative block w-full text-left transition-transform duration-200 hover:scale-[1.03]"
-    aria-label={`Open ${title}`}
+    aria-label={isFullyReadable ? `Read ${title} in GwenBooks` : sourceUrl ? `Open ${title} at its source` : `Check availability for ${title}`}
   >
     <BookCover
       coverColor={avgColor}
       coverUrl={fallbackCover}
+      title={title}
+      author={author}
       onImageLoad={handleCoverLoad}
       priority={priority}
     />
@@ -109,8 +122,9 @@ return (
         <p className="text-light-300 text-sm italic truncate">{author}</p>
       )}
       {genre && (
-        <p className="book-genre text-xs text-light-400">{genre}</p>
+        <p className="book-genre text-xs text-light-400">Source: {genre === "gutenberg" ? "Project Gutenberg" : genre === "wikisource" ? "Wikisource" : genre}</p>
       )}
+      <p className="mt-2 text-sm font-semibold text-blue-700">{isFullyReadable ? "Read in GwenBooks" : downloadId ? "Download PDF" : source === "gutenberg" ? "Download options" : sourceUrl ? "Get this book" : "Check availability"} <span aria-hidden="true">→</span></p>
     </div>
 
     {/* Spinner overlay */}
@@ -120,17 +134,24 @@ return (
       </div>
     )}
   </button>
+  {favoriteAction && <div className="mt-2">{favoriteAction}</div>}
   {(downloadUrl || downloadId) && (
     <a
-      href={downloadUrl
-        ? `/api/books/download?url=${encodeURIComponent(downloadUrl)}`
-        : `/api/books/download?archiveId=${encodeURIComponent(downloadId!)}`}
+      href={downloadId
+        ? `/api/books/download?archiveId=${encodeURIComponent(downloadId)}`
+        : downloadUrl!}
       target="_blank"
       className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-green-700 hover:text-green-800 dark:text-green-300 dark:hover:text-green-200"
     >
       <Download className="h-4 w-4" aria-hidden="true" /> Download PDF
     </a>
   )}
+  {!!sources?.length && <ul aria-label="Book sources" className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-light-300">
+    {sources.map((item) => <li key={`${item.name}:${item.url || ""}`}>
+      {item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2" onClick={(event) => event.stopPropagation()}>{item.name}</a> : item.name}
+    </li>)}
+  </ul>}
+  <Link className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline underline-offset-2" href={`/books/details/${encodeURIComponent(`${source || "gutenberg"}:${String(id)}`)}?${new URLSearchParams({ title, author: author || "", coverUrl: coverUrl || "", textUrl: readUrl || "", downloadId: downloadId || "" }).toString()}`}>Book details<span className="sr-only"> for {title}</span></Link>
 </div>
 
   {isLoanedBook && (

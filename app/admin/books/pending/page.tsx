@@ -44,6 +44,9 @@ export default function PendingApprovals() {
       {pending.length === 0 && <div>No pending uploads</div>}
       <div className="grid gap-4">
         {pending.map((b) => (
+          (() => {
+          const currentAction = actingOn && actingOn.id === b.id ? actingOn.action : null;
+          return (
           <div key={b.id} className="border p-4 rounded-lg flex gap-4 items-start">
             <img src={b.coverUrl || "/placeholder-book.jpg"} alt={b.title} className="w-24 h-32 object-cover rounded" />
             <div className="flex-1">
@@ -51,18 +54,20 @@ export default function PendingApprovals() {
               <p className="text-sm text-gray-500">By {b.author}</p>
               <p className="text-sm mt-2">{b.description}</p>
               <div className="mt-4 flex gap-2">
-                <button onClick={() => doAction(b.id, "APPROVE")} disabled={actingOn?.id === b.id} aria-busy={actingOn?.id === b.id && actingOn.action === "APPROVE"} className="relative inline-flex min-w-24 items-center justify-center px-3 py-1 rounded bg-green-600 text-white disabled:opacity-70">
-                  {actingOn?.id === b.id && actingOn.action === "APPROVE" && <span className="absolute inset-0 flex items-center justify-center"><ButtonSpinner /></span>}
-                  <span className={actingOn?.id === b.id && actingOn.action === "APPROVE" ? "opacity-0" : ""}>Approve</span>
+                <button onClick={() => doAction(b.id, "APPROVE")} disabled={currentAction !== null} aria-busy={currentAction === "APPROVE"} className="relative inline-flex min-w-24 items-center justify-center px-3 py-1 rounded bg-green-600 text-white disabled:opacity-70">
+                  {currentAction === "APPROVE" && <span className="absolute inset-0 flex items-center justify-center"><ButtonSpinner /></span>}
+                  <span className={currentAction === "APPROVE" ? "opacity-0" : ""}>Approve</span>
                 </button>
-                <button onClick={() => doAction(b.id, "REJECT")} disabled={actingOn?.id === b.id} aria-busy={actingOn?.id === b.id && actingOn.action === "REJECT"} className="relative inline-flex min-w-24 items-center justify-center px-3 py-1 rounded bg-red-600 text-white disabled:opacity-70">
-                  {actingOn?.id === b.id && actingOn.action === "REJECT" && <span className="absolute inset-0 flex items-center justify-center"><ButtonSpinner /></span>}
-                  <span className={actingOn?.id === b.id && actingOn.action === "REJECT" ? "opacity-0" : ""}>Reject</span>
+                <button onClick={() => doAction(b.id, "REJECT")} disabled={currentAction !== null} aria-busy={currentAction === "REJECT"} className="relative inline-flex min-w-24 items-center justify-center px-3 py-1 rounded bg-red-600 text-white disabled:opacity-70">
+                  {currentAction === "REJECT" && <span className="absolute inset-0 flex items-center justify-center"><ButtonSpinner /></span>}
+                  <span className={currentAction === "REJECT" ? "opacity-0" : ""}>Reject</span>
                 </button>
                 <a target="_blank" href={b.fileUrl} className="px-3 py-1 rounded bg-gray-100">Preview file</a>
               </div>
             </div>
           </div>
+          );
+          })()
         ))}
       </div>
     </div>

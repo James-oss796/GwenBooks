@@ -96,6 +96,9 @@ export const reading_progress = pgTable("reading_progress", {
   userId: text("user_id").notNull(),
   bookId: text("book_id").notNull(),
   pageIndex: integer("page_index").notNull().default(0),
+  title: text("title"),
+  author: text("author"),
+  coverUrl: text("cover_url"),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   userBookUnique: unique().on(table.userId, table.bookId),
@@ -112,12 +115,16 @@ export const uploaded_books = pgTable("uploaded_books", {
   description: text("description"),
   genre: varchar("genre", { length: 100 }),
   language: varchar("language", { length: 50 }).default("English"),
-  fileUrl: text("file_url").notNull(),
+  fileUrl: text("file_url"),
+  storagePath: text("storage_path"),
+  fileSize: integer("file_size"),
   coverUrl: text("cover_url"),
   fileType: varchar("file_type", { length: 20 }).default("pdf"),
   likesCount: text("likes_count").default("0"),
   viewsCount: text("views_count").default("0"),
-  isPublic: boolean("is_public").default(true),
+  isPublic: boolean("is_public").default(false),
+  requestedPublic: boolean("requested_public").notNull().default(false),
+  rightsAttested: boolean("rights_attested").notNull().default(false),
   status: varchar("status", { length: 20 }).default("PENDING"), // ✅ Added
   adminNote: text("admin_note"), // ✅ Added
   createdAt: timestamp("created_at").defaultNow(),

@@ -49,7 +49,7 @@ export default function AdminBooksPage() {
 
   return (
     <main className="p-6">
-      <h1 className="text-2xl font-bold mb-6">📚 Uploaded Books</h1>
+      <h1 className="text-2xl font-bold mb-6">Uploaded Books</h1>
 
       {loading ? (
         <p>Loading...</p>

@@ -1,4 +1,4 @@
-interface Book {
+export interface Book {
     id: string;
     title: string;
     readUrl?: string;
@@ -18,17 +18,32 @@ interface Book {
     isLoanedBook?: boolean;
     createdAt?: Date | null;
     readUrl?: string;
-    source?: "gutenberg" | "internetarchive" | "wikisource";
+    source?: "gutenberg" | "internetarchive" | "wikisource" | "openlibrary" | "googlebooks" | "uploaded";
+    fileType?: "pdf" | "epub";
+    fileSize?: number;
      isFullyReadable?: boolean;
+    subtitle?: string;
+    subjects?: string[];
+    language?: string;
+    publicationDate?: string;
+    publisher?: string;
+    isbn?: string[];
+    sourceId?: string;
+    availability?: "readable_in_app" | "external_preview" | "source_only";
+    sourceUrl?: string;
+    formats?: string[];
+    chapters?: Array<{ id: string; title: string; content: string }>;
+    metadataConfidence?: number;
+    sources?: Array<{ name: string; url?: string; availability: "readable_in_app" | "external_preview" | "source_only" }>;
   }
   
-  interface AuthCredentials {
+export interface AuthCredentials {
     fullName: string;
     email: string;
     password: string;
   }
   
-  interface BookParams {
+export interface BookParams {
     title: string;
     author: string;
     genre: string;
@@ -41,7 +56,7 @@ interface Book {
     summary: string;
   }
   
-  interface BorrowBookParams {
+export interface BorrowBookParams {
     bookId: string;
     userId: string;
   }
